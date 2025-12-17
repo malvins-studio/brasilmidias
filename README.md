@@ -1,36 +1,126 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mídias Brasil - Plataforma de Locação de Mídias Outdoor
 
-## Getting Started
+MVP de uma plataforma de locação de mídias outdoor, similar ao Airbnb.
 
-First, run the development server:
+## Funcionalidades
 
+- ✅ Autenticação com email/senha e Google OAuth
+- ✅ Listagem de mídias com filtros por cidade e data
+- ✅ Sistema de favoritos
+- ✅ Sistema de reservas com verificação de disponibilidade
+- ✅ Página de detalhes da mídia com galeria de imagens
+- ✅ Cálculo dinâmico de preço baseado em dias selecionados
+- ✅ Indicadores visuais para mídias reservadas
+
+## Tecnologias
+
+- Next.js 16
+- React 19
+- TypeScript
+- Firebase (Auth, Firestore, Storage)
+- Tailwind CSS
+- shadcn/ui
+
+## Configuração
+
+1. Instale as dependências:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Configure as variáveis de ambiente do Firebase. Crie um arquivo `.env.local` na raiz do projeto:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. Configure o Firebase:
+   - Crie um projeto no Firebase Console
+   - Ative Authentication (Email/Password e Google)
+   - Crie as coleções no Firestore:
+     - `media`
+     - `reservations`
+     - `favorites`
+     - `companies`
 
-## Learn More
+4. Execute o servidor de desenvolvimento:
+```bash
+pnpm dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Estrutura de Dados
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Coleção `media`
+```typescript
+{
+  name: string
+  city: string
+  state: string
+  mediaType: string
+  traffic: number
+  trafficUnit: string
+  pricePerDay: number
+  images: string[]
+  coordinates: { lat: number, lng: number }
+  address: {
+    street: string
+    number: string
+    neighborhood: string
+    city: string
+    state: string
+    zipCode: string
+    complement?: string
+  }
+  companyId: string
+  companyName: string
+  createdAt: Timestamp
+}
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Coleção `reservations`
+```typescript
+{
+  mediaId: string
+  userId: string
+  startDate: Timestamp
+  endDate: Timestamp
+  totalPrice: number
+  status: 'pending' | 'confirmed' | 'cancelled'
+  createdAt: Timestamp
+}
+```
 
-## Deploy on Vercel
+### Coleção `favorites`
+```typescript
+{
+  userId: string
+  mediaId: string
+  createdAt: Timestamp
+}
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Coleção `companies`
+```typescript
+{
+  name: string
+  logo: string
+}
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Rotas
+
+- `/` - Página inicial com listagem de mídias
+- `/login` - Página de login/cadastro
+- `/midia/[id]` - Página de detalhes da mídia
+
+## Scripts
+
+- `pnpm dev` - Inicia o servidor de desenvolvimento
+- `pnpm build` - Cria build de produção
+- `pnpm start` - Inicia o servidor de produção
+- `pnpm lint` - Executa o linter

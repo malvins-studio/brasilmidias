@@ -1,0 +1,168 @@
+{
+  "companies": [
+    {
+      "id": "outdoor-solutions",
+      "name": "Outdoor Solutions",
+      "logo": "https://via.placeholder.com/200x200?text=Outdoor+Solutions"
+    },
+    {
+      "id": "midia-urbana-sp",
+      "name": "Mídia Urbana SP",
+      "logo": "https://via.placeholder.com/200x200?text=Midia+Urbana"
+    },
+    {
+      "id": "publicidade-express",
+      "name": "Publicidade Express",
+      "logo": "https://via.placeholder.com/200x200?text=Publicidade+Express"
+    }
+  ],
+  "media": [
+    {
+      "name": "Outdoor Avenida Paulista - Sentido Centro",
+      "city": "São Paulo",
+      "state": "SP",
+      "mediaType": "Outdoor",
+      "traffic": 85000,
+      "trafficUnit": "veículos/dia",
+      "pricePerDay": 1200.00,
+      "images": [
+        "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800",
+        "https://images.unsplash.com/photo-1514565131-fce0801e5785?w=800",
+        "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800"
+      ],
+      "coordinates": {
+        "lat": -23.5505,
+        "lng": -46.6333
+      },
+      "address": {
+        "street": "Avenida Paulista",
+        "number": "1578",
+        "neighborhood": "Bela Vista",
+        "city": "São Paulo",
+        "state": "SP",
+        "zipCode": "01310-200",
+        "complement": "Próximo ao metrô Trianon"
+      },
+      "companyId": "outdoor-solutions",
+      "companyName": "Outdoor Solutions",
+      "createdAt": "2024-01-15T10:00:00Z"
+    },
+    {
+      "name": "Busdoor Ônibus Linha Vermelha - Zona Norte",
+      "city": "São Paulo",
+      "state": "SP",
+      "mediaType": "Busdoor",
+      "traffic": 45000,
+      "trafficUnit": "passageiros/dia",
+      "pricePerDay": 800.00,
+      "images": [
+        "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800",
+        "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800",
+        "https://images.unsplash.com/photo-1557223562-6c77ef16210f?w=800"
+      ],
+      "coordinates": {
+        "lat": -23.5000,
+        "lng": -46.6000
+      },
+      "address": {
+        "street": "Avenida Radial Leste",
+        "number": "500",
+        "neighborhood": "Tatuapé",
+        "city": "São Paulo",
+        "state": "SP",
+        "zipCode": "03062-000"
+      },
+      "companyId": "midia-urbana-sp",
+      "companyName": "Mídia Urbana SP",
+      "createdAt": "2024-01-20T14:30:00Z"
+    },
+    {
+      "name": "Backlight Shopping Iguatemi",
+      "city": "São Paulo",
+      "state": "SP",
+      "mediaType": "Backlight",
+      "traffic": 120000,
+      "trafficUnit": "pessoas/dia",
+      "pricePerDay": 2000.00,
+      "images": [
+        "https://images.unsplash.com/photo-1556912172-45b7abe8b7e4?w=800",
+        "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800",
+        "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=800"
+      ],
+      "coordinates": {
+        "lat": -23.5800,
+        "lng": -46.6800
+      },
+      "address": {
+        "street": "Avenida Brigadeiro Faria Lima",
+        "number": "2232",
+        "neighborhood": "Jardim Paulistano",
+        "city": "São Paulo",
+        "state": "SP",
+        "zipCode": "01452-000"
+      },
+      "companyId": "publicidade-express",
+      "companyName": "Publicidade Express",
+      "createdAt": "2024-02-01T09:15:00Z"
+    },
+    {
+      "name": "Outdoor Avenida Atlântica - Copacabana",
+      "city": "Rio de Janeiro",
+      "state": "RJ",
+      "mediaType": "Outdoor",
+      "traffic": 60000,
+      "trafficUnit": "veículos/dia",
+      "pricePerDay": 1500.00,
+      "images": [
+        "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=800",
+        "https://images.unsplash.com/photo-1516306580123-e6e52b1b9b52?w=800",
+        "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800"
+      ],
+      "coordinates": {
+        "lat": -22.9707,
+        "lng": -43.1822
+      },
+      "address": {
+        "street": "Avenida Atlântica",
+        "number": "2000",
+        "neighborhood": "Copacabana",
+        "city": "Rio de Janeiro",
+        "state": "RJ",
+        "zipCode": "22021-000"
+      },
+      "companyId": "outdoor-solutions",
+      "companyName": "Outdoor Solutions",
+      "createdAt": "2024-02-10T11:00:00Z"
+    },
+    {
+      "name": "Mupi Avenida Afonso Pena",
+      "city": "Belo Horizonte",
+      "state": "MG",
+      "mediaType": "Mupi",
+      "traffic": 35000,
+      "trafficUnit": "pessoas/dia",
+      "pricePerDay": 600.00,
+      "images": [
+        "https://images.unsplash.com/photo-1514565131-fce0801e5785?w=800",
+        "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800",
+        "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800"
+      ],
+      "coordinates": {
+        "lat": -19.9167,
+        "lng": -43.9345
+      },
+      "address": {
+        "street": "Avenida Afonso Pena",
+        "number": "1500",
+        "neighborhood": "Centro",
+        "city": "Belo Horizonte",
+        "state": "MG",
+        "zipCode": "30130-000"
+      },
+      "companyId": "midia-urbana-sp",
+      "companyName": "Mídia Urbana SP",
+      "createdAt": "2024-02-15T16:45:00Z"
+    }
+  ]
+}
+
