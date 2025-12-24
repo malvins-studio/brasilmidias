@@ -10,7 +10,8 @@ import {
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 
 interface AuthContextType {
   user: User | null;
@@ -40,13 +41,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password);
   };
 
+  /**
+   * Cria uma nova conta e cria o documento do usuário no Firestore
+   * O documento é criado com role 'client' por padrão
+   */
   const signup = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    // Cria o documento do usuário no Firestore
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+
+    // Só cria se não existir (evita sobrescrever se já existir)
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        email: user.email || email,
+        role: 'client', // Por padrão, novo usuário é client
+        createdAt: Timestamp.now(),
+      });
+    }
   };
 
+  /**
+   * Login com Google e cria o documento do usuário no Firestore se não existir
+   */
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    const userCredential = await signInWithPopup(auth, provider);
+    const user = userCredential.user;
+
+    // Cria o documento do usuário no Firestore se não existir
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        email: user.email || '',
+        name: user.displayName || undefined,
+        role: 'client', // Por padrão, novo usuário é client
+        createdAt: Timestamp.now(),
+      });
+    }
   };
 
   const logout = async () => {

@@ -12,8 +12,13 @@ export function useMidias() {
     try {
       setLoading(true);
       setError(null);
+      
+      // Inicia a query
+      // Nota: Firestore não permite múltiplos where com !=
+      // Vamos filtrar mídias deletadas depois da query
       let q = query(collection(db, 'media'));
 
+      // Adiciona filtro de cidade se fornecido
       if (cityFilter && cityFilter.trim()) {
         q = query(q, where('city', '==', cityFilter.trim()));
       }
@@ -22,11 +27,16 @@ export function useMidias() {
       const midiasData: Media[] = [];
 
       querySnapshot.forEach((doc) => {
-        midiasData.push({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt || Timestamp.now(),
-        } as Media);
+        const data = doc.data();
+        // Filtra mídias deletadas logicamente (exclusão lógica)
+        // Inclui mídias onde deleted é undefined, false ou não existe
+        if (!data.deleted) {
+          midiasData.push({
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt || Timestamp.now(),
+          } as Media);
+        }
       });
 
       setMidias(midiasData);

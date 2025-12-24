@@ -1,7 +1,16 @@
 'use client';
 
+/**
+ * Componente Header
+ * 
+ * Exibe o header da aplicação com navegação baseada no role do usuário:
+ * - Clientes: veem apenas "Meu Dashboard" (reservas)
+ * - Owners: veem "Meu Dashboard" e "Dashboard Owner" (gerenciamento de mídias)
+ */
+
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -13,6 +22,7 @@ import {
 
 export function Header() {
   const { user, logout } = useAuth();
+  const { isOwner, isSuperAdmin, loading: roleLoading } = useUserRole();
 
   return (
     <header className="border-b">
@@ -34,6 +44,22 @@ export function Header() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {/* Dashboard de reservas - disponível para todos os usuários */}
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard">Meu Dashboard</Link>
+                </DropdownMenuItem>
+                {/* Dashboard do owner - apenas para owners */}
+                {!roleLoading && isOwner && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/owner/dashboard">Dashboard Owner</Link>
+                  </DropdownMenuItem>
+                )}
+                {/* Painel de administração - apenas para super admins */}
+                {!roleLoading && isSuperAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin">Administração</Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={logout}>
                   Sair
                 </DropdownMenuItem>

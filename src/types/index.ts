@@ -29,7 +29,11 @@ export interface Media {
   address: Address;
   companyId: string;
   companyName: string;
+  ownerId: string; // ID do usuário owner da mídia
+  ownerStripeAccountId?: string; // Stripe Connect account ID do owner
+  deleted?: boolean; // Exclusão lógica - se true, a mídia não aparece nas buscas
   createdAt: Timestamp;
+  updatedAt?: Timestamp; // Data da última atualização
 }
 
 export interface Reservation {
@@ -39,8 +43,15 @@ export interface Reservation {
   startDate: Timestamp;
   endDate: Timestamp;
   totalPrice: number;
-  status: 'pending' | 'confirmed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   createdAt: Timestamp;
+  // Informações de pagamento
+  paymentIntentId?: string;
+  paymentStatus?: 'pending' | 'paid' | 'held' | 'released' | 'refunded';
+  platformFee?: number; // Taxa da plataforma
+  ownerAmount?: number; // Valor que será pago ao owner
+  ownerStripeAccountId?: string; // Stripe Connect account ID do owner
+  paymentReleasedAt?: Timestamp; // Data em que o pagamento foi liberado
 }
 
 export interface Favorite {
@@ -53,6 +64,19 @@ export interface Favorite {
 export interface Company {
   id: string;
   name: string;
-  logo: string;
+  logo?: string; // Logo da empresa (opcional)
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface User {
+  id: string; // Mesmo ID do Firebase Auth (userId)
+  email: string;
+  name?: string;
+  role: 'client' | 'owner'; // Tipo de usuário: cliente ou owner
+  companyId?: string; // ID da company à qual o usuário está atrelado (apenas SUPER ADMIN pode definir)
+  isSuperAdmin?: boolean; // Se true, é super admin da plataforma (pode gerenciar companies e usuários)
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
 }
 

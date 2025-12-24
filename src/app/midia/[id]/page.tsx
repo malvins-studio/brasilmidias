@@ -21,7 +21,7 @@ export default function MediaDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  const { checkAvailability, createReservation, loading: reservationLoading } = useReservas();
+  const { checkAvailability } = useReservas();
   
   const [media, setMedia] = useState<Media | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,6 +30,7 @@ export default function MediaDetailPage() {
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => {
     const fetchMedia = async () => {
@@ -99,15 +100,43 @@ export default function MediaDetailPage() {
 
     try {
       setError(null);
+      setSuccess(false);
+      setProcessingPayment(true);
       const totalPrice = calculatePrice(media.pricePerDay, dateRange.from, dateRange.to);
-      await createReservation(media.id, dateRange.from, dateRange.to, totalPrice);
-      setSuccess(true);
-      setTimeout(() => {
-        router.push('/');
-      }, 2000);
+
+      // Cria a sessão de checkout no Stripe
+      const response = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mediaId: media.id,
+          startDate: dateRange.from.toISOString(),
+          endDate: dateRange.to.toISOString(),
+          totalPrice,
+          userId: user.uid,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao criar sessão de pagamento');
+      }
+
+      const { url } = await response.json();
+
+      // Redireciona para o checkout do Stripe usando a URL da sessão
+      if (url) {
+        window.location.href = url;
+      } else {
+        throw new Error('URL de checkout não disponível');
+      }
     } catch (err) {
       const error = err as { message?: string };
       setError(error.message || 'Erro ao fazer reserva');
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
@@ -266,11 +295,11 @@ export default function MediaDetailPage() {
                       !dateRange?.from ||
                       !dateRange?.to ||
                       !isAvailable ||
-                      reservationLoading ||
+                      processingPayment ||
                       checkingAvailability
                     }
                   >
-                    {reservationLoading ? 'Processando...' : 'Reservar'}
+                    {processingPayment ? 'Processando...' : 'Ir para Pagamento'}
                   </Button>
 
                   {!user && (
