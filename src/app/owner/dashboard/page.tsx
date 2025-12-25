@@ -14,29 +14,21 @@ import { useRouter } from 'next/navigation';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Header } from '@/components/Header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useOwnerMidias } from '@/hooks/useOwnerMidias';
-import { Reservation, Media } from '@/types';
+import { Reservation, Media, User } from '@/types';
 import { formatCurrency } from '@/lib/utils';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale/pt-BR';
 import {
-  Calendar,
-  MapPin,
-  DollarSign,
   CheckCircle,
   Clock,
-  Plus,
-  Edit,
-  Trash2,
   TrendingUp,
+  Calendar,
 } from 'lucide-react';
-import Link from 'next/link';
+import { ReservationsTab } from './components/ReservationsTab';
+import { MediasTab } from './components/MediasTab';
 
 export default function OwnerDashboardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -44,21 +36,22 @@ export default function OwnerDashboardPage() {
   const { userRole } = useUserRole(); // Para pegar o companyId
   const { midias, loading: midiasLoading, deleteMedia } = useOwnerMidias();
 
-  // Estado para reservas
-  const [reservations, setReservations] = useState<(Reservation & { media?: Media })[]>([]);
+  // Estado para reservas (inclui dados do cliente que alugou)
+  const [reservations, setReservations] = useState<(Reservation & { media?: Media; client?: User })[]>([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
 
   // Estatísticas calculadas
   const [stats, setStats] = useState({
-    totalRevenue: 0,
-    pendingRevenue: 0,
-    releasedRevenue: 0,
+    totalRevenue: 0, // Receita total paga e confirmada
+    pendingRevenue: 0, // Receita pendente (não paga ainda)
+    releasedRevenue: 0, // Receita liberada para o owner
     totalReservations: 0,
     activeReservations: 0,
   });
 
   /**
    * Verifica autenticação e redireciona se necessário
+   * Também verifica se o usuário tem companyId antes de buscar dados
    */
   useEffect(() => {
     if (!authLoading && !user) {
@@ -66,10 +59,18 @@ export default function OwnerDashboardPage() {
       return;
     }
 
-    if (user) {
+    // Só busca dados se o usuário tiver companyId
+    // As mídias são atreladas à company, não ao usuário diretamente
+    if (user && userRole?.companyId) {
       fetchReservations();
+    } else if (user && userRole && !userRole.companyId) {
+      // Usuário logado mas sem company - limpa dados
+      setReservations([]);
+      calculateStats([]);
+      setLoadingReservations(false);
     }
-  }, [user, authLoading, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, userRole?.companyId, authLoading]);
 
   /**
    * Busca todas as reservas das mídias do owner
@@ -108,7 +109,7 @@ export default function OwnerDashboardPage() {
 
       // Busca reservas das mídias do owner
       // Nota: Firestore não suporta 'in' com mais de 10 itens, então fazemos múltiplas queries se necessário
-      const allReservations: (Reservation & { media?: Media })[] = [];
+      const allReservations: (Reservation & { media?: Media; client?: User })[] = [];
 
       // Divide em chunks de 10 para a query 'in'
       const chunkSize = 10;
@@ -122,21 +123,43 @@ export default function OwnerDashboardPage() {
         const reservationsSnapshot = await getDocs(reservationsQuery);
 
         for (const docSnap of reservationsSnapshot.docs) {
-          const reservation = {
+          const reservationData = {
             id: docSnap.id,
             ...docSnap.data(),
           } as Reservation;
 
           // Busca informações da mídia
-          const mediaDoc = await getDoc(doc(db, 'media', reservation.mediaId));
+          let media: Media | undefined;
+          const mediaDoc = await getDoc(doc(db, 'media', reservationData.mediaId));
           if (mediaDoc.exists()) {
-            reservation.media = {
+            media = {
               id: mediaDoc.id,
               ...mediaDoc.data(),
             } as Media;
           }
 
-          allReservations.push(reservation);
+          // Busca informações do cliente que alugou a mídia
+          let client: User | undefined;
+          if (reservationData.userId) {
+            try {
+              const clientDoc = await getDoc(doc(db, 'users', reservationData.userId));
+              if (clientDoc.exists()) {
+                client = {
+                  id: clientDoc.id,
+                  ...clientDoc.data(),
+                } as User;
+              }
+            } catch (clientError) {
+              console.error('Error fetching client data:', clientError);
+              // Continua mesmo se não conseguir buscar dados do cliente
+            }
+          }
+
+          allReservations.push({
+            ...reservationData,
+            media,
+            client,
+          });
         }
       }
 
@@ -158,21 +181,35 @@ export default function OwnerDashboardPage() {
 
   /**
    * Calcula estatísticas das reservas
+   * IMPORTANTE: Receita Total mostra apenas valores que foram realmente pagos (confirmados)
+   * - 'pending': não foi pago ainda (não conta na receita total)
+   * - 'paid' ou 'held': foi pago e confirmado (conta na receita total, mas está bloqueado)
+   * - 'released': foi pago e liberado para o owner (conta na receita total e liberada)
    */
-  const calculateStats = (reservationsData: (Reservation & { media?: Media })[]) => {
-    let totalRevenue = 0;
-    let pendingRevenue = 0;
-    let releasedRevenue = 0;
+  const calculateStats = (reservationsData: (Reservation & { media?: Media; client?: User })[]) => {
+    let paidRevenue = 0; // Receita realmente paga e confirmada (paymentStatus: 'paid', 'held' ou 'released')
+    let pendingRevenue = 0; // Receita pendente - pagamento ainda não foi confirmado (paymentStatus: 'pending')
+    let releasedRevenue = 0; // Receita liberada - paga e liberada para o owner (paymentStatus: 'released')
     let activeReservations = 0;
 
     reservationsData.forEach((reservation) => {
       if (reservation.ownerAmount) {
-        totalRevenue += reservation.ownerAmount;
-
-        if (reservation.paymentStatus === 'held') {
+        // Receita pendente: pagamento ainda não foi confirmado
+        if (reservation.paymentStatus === 'pending') {
           pendingRevenue += reservation.ownerAmount;
-        } else if (reservation.paymentStatus === 'released') {
-          releasedRevenue += reservation.ownerAmount;
+        }
+        // Receita paga e confirmada (mas pode estar bloqueada)
+        else if (
+          reservation.paymentStatus === 'paid' ||
+          reservation.paymentStatus === 'held' ||
+          reservation.paymentStatus === 'released'
+        ) {
+          paidRevenue += reservation.ownerAmount;
+
+          // Receita liberada: paga e liberada para o owner
+          if (reservation.paymentStatus === 'released') {
+            releasedRevenue += reservation.ownerAmount;
+          }
         }
       }
 
@@ -186,9 +223,9 @@ export default function OwnerDashboardPage() {
     });
 
     setStats({
-      totalRevenue,
-      pendingRevenue,
-      releasedRevenue,
+      totalRevenue: paidRevenue, // Receita total = apenas valores pagos e confirmados
+      pendingRevenue, // Valores que ainda não foram pagos
+      releasedRevenue, // Valores liberados para o owner
       totalReservations: reservationsData.length,
       activeReservations,
     });
@@ -211,30 +248,6 @@ export default function OwnerDashboardPage() {
     }
   };
 
-  /**
-   * Retorna badge de status da reserva
-   */
-  const getStatusBadge = (status: string, paymentStatus?: string) => {
-    if (status === 'completed') {
-      return <Badge className="bg-green-500">Concluída</Badge>;
-    }
-    if (status === 'confirmed' && paymentStatus === 'held') {
-      return <Badge className="bg-blue-500">Pagamento Bloqueado</Badge>;
-    }
-    if (status === 'confirmed' && paymentStatus === 'released') {
-      return <Badge className="bg-green-500">Pagamento Liberado</Badge>;
-    }
-    if (status === 'confirmed') {
-      return <Badge className="bg-blue-500">Confirmada</Badge>;
-    }
-    if (status === 'pending') {
-      return <Badge variant="outline">Pendente</Badge>;
-    }
-    if (status === 'cancelled') {
-      return <Badge variant="destructive">Cancelada</Badge>;
-    }
-    return <Badge variant="outline">{status}</Badge>;
-  };
 
   if (authLoading || loadingReservations) {
     return (
@@ -243,6 +256,28 @@ export default function OwnerDashboardPage() {
         <div className="container mx-auto px-4 py-12 text-center">
           Carregando...
         </div>
+      </div>
+    );
+  }
+
+  // Verifica se o usuário tem companyId
+  // As mídias são atreladas à company, não ao usuário diretamente
+  if (user && userRole && !userRole.companyId) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <Card>
+            <CardContent className="p-12 text-center">
+              <p className="text-muted-foreground mb-4">
+                Você precisa estar atrelado a uma company para acessar o dashboard do owner.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Entre em contato com o administrador para ser vinculado a uma company.
+              </p>
+            </CardContent>
+          </Card>
+        </main>
       </div>
     );
   }
@@ -264,8 +299,11 @@ export default function OwnerDashboardPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Receita Total</p>
+                  <p className="text-sm text-muted-foreground">Receita Total Paga</p>
                   <p className="text-2xl font-bold">{formatCurrency(stats.totalRevenue)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Valores realmente recebidos
+                  </p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-green-500" />
               </div>
@@ -278,6 +316,9 @@ export default function OwnerDashboardPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">Receita Pendente</p>
                   <p className="text-2xl font-bold">{formatCurrency(stats.pendingRevenue)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Aguardando pagamento
+                  </p>
                 </div>
                 <Clock className="h-8 w-8 text-yellow-500" />
               </div>
@@ -318,163 +359,16 @@ export default function OwnerDashboardPage() {
 
           {/* Tab de Reservas */}
           <TabsContent value="reservations">
-            {reservations.length === 0 ? (
-              <Card>
-                <CardContent className="p-12 text-center">
-                  <p className="text-muted-foreground mb-4">
-                    Você ainda não tem reservas nas suas mídias
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-6">
-                {reservations.map((reservation) => (
-                  <Card key={reservation.id}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="mb-2">
-                            {reservation.media?.name || 'Mídia não encontrada'}
-                          </CardTitle>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <MapPin className="h-4 w-4" />
-                              {reservation.media?.city}, {reservation.media?.state}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-4 w-4" />
-                              {reservation.startDate &&
-                                format(reservation.startDate.toDate(), 'dd/MM/yyyy', {
-                                  locale: ptBR,
-                                })}{' '}
-                              -{' '}
-                              {reservation.endDate &&
-                                format(reservation.endDate.toDate(), 'dd/MM/yyyy', {
-                                  locale: ptBR,
-                                })}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          {getStatusBadge(reservation.status, reservation.paymentStatus)}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="h-5 w-5 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm text-muted-foreground">Valor Total</p>
-                            <p className="font-semibold">
-                              {formatCurrency(reservation.totalPrice)}
-                            </p>
-                          </div>
-                        </div>
-                        {reservation.ownerAmount && (
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="h-5 w-5 text-muted-foreground" />
-                            <div>
-                              <p className="text-sm text-muted-foreground">Sua Receita</p>
-                              <p className="font-semibold text-green-600">
-                                {formatCurrency(reservation.ownerAmount)}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                        {reservation.platformFee && (
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="h-5 w-5 text-muted-foreground" />
-                            <div>
-                              <p className="text-sm text-muted-foreground">Taxa Plataforma</p>
-                              <p className="font-semibold">
-                                {formatCurrency(reservation.platformFee)}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+            <ReservationsTab reservations={reservations} />
           </TabsContent>
 
           {/* Tab de Mídias */}
           <TabsContent value="medias">
-            <div className="mb-4 flex justify-end">
-              <Link href="/owner/media/new">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nova Mídia
-                </Button>
-              </Link>
-            </div>
-
-            {midiasLoading ? (
-              <div className="text-center py-12">Carregando mídias...</div>
-            ) : midias.length === 0 ? (
-              <Card>
-                <CardContent className="p-12 text-center">
-                  <p className="text-muted-foreground mb-4">
-                    Você ainda não tem mídias cadastradas
-                  </p>
-                  <Link href="/owner/media/new">
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Cadastrar Primeira Mídia
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-6">
-                {midias.map((media) => (
-                  <Card key={media.id}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="mb-2">{media.name}</CardTitle>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <MapPin className="h-4 w-4" />
-                              {media.city}, {media.state}
-                            </div>
-                            <div>
-                              <span className="font-medium">{formatCurrency(media.pricePerDay)}</span>
-                              <span className="text-muted-foreground"> / dia</span>
-                            </div>
-                            {media.deleted && (
-                              <Badge variant="destructive">Deletada</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex gap-2">
-                        <Link href={`/owner/media/${media.id}/edit`}>
-                          <Button variant="outline" size="sm">
-                            <Edit className="h-4 w-4 mr-2" />
-                            Editar
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteMedia(media.id, media.name)}
-                          disabled={media.deleted}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          {media.deleted ? 'Deletada' : 'Deletar'}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+            <MediasTab 
+              midias={midias} 
+              loading={midiasLoading}
+              onDeleteMedia={handleDeleteMedia}
+            />
           </TabsContent>
         </Tabs>
       </main>

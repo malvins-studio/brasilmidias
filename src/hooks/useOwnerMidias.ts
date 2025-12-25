@@ -15,7 +15,7 @@ import {
 import { db } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useUserRole } from './useUserRole';
-import { Media, Address, Coordinates } from '@/types';
+import { Media } from '@/types';
 
 /**
  * Hook para gerenciar mídias do owner
@@ -23,7 +23,7 @@ import { Media, Address, Coordinates } from '@/types';
  */
 export function useOwnerMidias() {
   const { user } = useAuth();
-  const { userRole } = useUserRole(); // Para pegar o companyId
+  const { userRole, loading: roleLoading } = useUserRole(); // Para pegar o companyId
   const [midias, setMidias] = useState<Media[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,12 +31,18 @@ export function useOwnerMidias() {
   /**
    * Busca todas as mídias da company do owner logado
    * IMPORTANTE: As mídias são atreladas à company, não ao usuário diretamente
+   * IMPORTANTE: A query usa companyId, NÃO ownerId ou userId
    * Inclui mídias deletadas (exclusão lógica)
    */
   const fetchMidias = async () => {
     if (!user) {
       setError('Usuário não autenticado');
       return;
+    }
+
+    // Aguarda o carregamento do userRole antes de buscar mídias
+    if (roleLoading) {
+      return; // Ainda carregando, aguarda
     }
 
     if (!userRole?.companyId) {
@@ -50,11 +56,12 @@ export function useOwnerMidias() {
       setError(null);
 
       // Busca todas as mídias da company do owner, incluindo deletadas
+      // IMPORTANTE: Usa companyId para filtrar, NÃO ownerId ou userId
       // Nota: Para incluir deletadas, não filtramos por deleted
       // O owner precisa ver todas as mídias da company, mesmo as deletadas
       const q = query(
         collection(db, 'media'),
-        where('companyId', '==', userRole.companyId),
+        where('companyId', '==', userRole.companyId), // FILTRO POR COMPANY ID, NÃO USER ID
         orderBy('createdAt', 'desc')
       );
 
@@ -62,10 +69,18 @@ export function useOwnerMidias() {
       const midiasData: Media[] = [];
 
       querySnapshot.forEach((docSnap) => {
-        midiasData.push({
-          id: docSnap.id,
-          ...docSnap.data(),
-        } as Media);
+        const data = docSnap.data();
+        // Validação extra: garante que a mídia tem companyId e corresponde ao companyId do usuário
+        // Isso previne problemas caso haja mídias sem companyId ou com companyId incorreto
+        if (data.companyId === userRole.companyId) {
+          midiasData.push({
+            id: docSnap.id,
+            ...data,
+          } as Media);
+        } else {
+          // Log de warning se encontrar mídia com companyId diferente (não deveria acontecer)
+          console.warn(`Mídia ${docSnap.id} tem companyId diferente do esperado. Esperado: ${userRole.companyId}, Encontrado: ${data.companyId}`);
+        }
       });
 
       setMidias(midiasData);
@@ -91,10 +106,20 @@ export function useOwnerMidias() {
       setLoading(true);
       setError(null);
 
+      // Verifica se o usuário tem companyId
+      // As mídias são atreladas à company, não ao usuário diretamente
+      if (!userRole?.companyId) {
+        throw new Error('Usuário não está atrelado a uma company');
+      }
+
       // Adiciona dados do owner e timestamps
+      // ownerId é mantido para histórico (quem criou), mas a mídia pertence à company
+      // IMPORTANTE: companyId é sempre definido baseado no userRole, garantindo que a mídia
+      // seja sempre filtrada corretamente pela company do owner
       const newMedia = {
         ...mediaData,
-        ownerId: user.uid,
+        companyId: userRole.companyId, // Garante que companyId sempre seja definido
+        ownerId: user.uid, // Mantido para histórico de quem criou
         deleted: false,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
@@ -153,6 +178,11 @@ export function useOwnerMidias() {
       throw new Error('Usuário não autenticado');
     }
 
+    // Verifica se o usuário tem companyId antes de continuar
+    if (!userRole?.companyId) {
+      throw new Error('Usuário não está atrelado a uma company');
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -166,13 +196,26 @@ export function useOwnerMidias() {
       }
 
       const mediaData = mediaSnap.data() as Media;
+      
       // Verifica se a mídia pertence à company do usuário
-      if (mediaData.companyId !== userRole?.companyId) {
+      // IMPORTANTE: Verifica usando companyId, NÃO ownerId
+      if (!mediaData.companyId) {
+        throw new Error('Mídia não possui companyId associado');
+      }
+
+      if (mediaData.companyId !== userRole.companyId) {
         throw new Error('Você não tem permissão para editar esta mídia');
       }
 
-      // Remove pricePerDay se estiver nos updates (não pode ser alterado)
-      const { pricePerDay, ...safeUpdates } = updates as any;
+      // Remove campos que não podem ser alterados:
+      // - pricePerDay: não pode ser alterado
+      // - companyId: não pode ser alterado (a mídia pertence à company)
+      // - ownerId: não pode ser alterado (histórico de quem criou)
+      const safeUpdates = { ...updates };
+      // Remove campos protegidos se existirem
+      delete (safeUpdates as Record<string, unknown>).pricePerDay;
+      delete (safeUpdates as Record<string, unknown>).companyId;
+      delete (safeUpdates as Record<string, unknown>).ownerId;
       
       // Adiciona timestamp de atualização
       await updateDoc(mediaRef, {
@@ -203,11 +246,16 @@ export function useOwnerMidias() {
       throw new Error('Usuário não autenticado');
     }
 
+    // Verifica se o usuário tem companyId antes de continuar
+    if (!userRole?.companyId) {
+      throw new Error('Usuário não está atrelado a uma company');
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      // Verifica se a mídia pertence ao owner
+      // Verifica se a mídia pertence à company do owner
       const mediaRef = doc(db, 'media', mediaId);
       const mediaSnap = await getDoc(mediaRef);
 
@@ -216,8 +264,14 @@ export function useOwnerMidias() {
       }
 
       const mediaData = mediaSnap.data() as Media;
+      
       // Verifica se a mídia pertence à company do usuário
-      if (mediaData.companyId !== userRole?.companyId) {
+      // IMPORTANTE: Verifica usando companyId, NÃO ownerId
+      if (!mediaData.companyId) {
+        throw new Error('Mídia não possui companyId associado');
+      }
+
+      if (mediaData.companyId !== userRole.companyId) {
         throw new Error('Você não tem permissão para deletar esta mídia');
       }
 
@@ -241,14 +295,21 @@ export function useOwnerMidias() {
   };
 
   // Busca mídias quando o componente monta ou o usuário/company muda
+  // IMPORTANTE: Aguarda o carregamento do userRole antes de buscar mídias
   useEffect(() => {
+    // Se ainda está carregando o role, aguarda
+    if (roleLoading) {
+      return;
+    }
+
+    // Só busca mídias se o usuário estiver autenticado E tiver companyId
     if (user && userRole?.companyId) {
       fetchMidias();
     } else {
       setMidias([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, userRole?.companyId]);
+  }, [user?.uid, userRole?.companyId, roleLoading]);
 
   return {
     midias,

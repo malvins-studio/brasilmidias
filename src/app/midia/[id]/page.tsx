@@ -31,6 +31,8 @@ export default function MediaDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
+  // Estado para o tipo de preço selecionado pelo usuário (dia/semana/mês)
+  const [selectedPriceType, setSelectedPriceType] = useState<'day' | 'week' | 'month'>('day');
 
   useEffect(() => {
     const fetchMedia = async () => {
@@ -102,7 +104,14 @@ export default function MediaDetailPage() {
       setError(null);
       setSuccess(false);
       setProcessingPayment(true);
-      const totalPrice = calculatePrice(media.pricePerDay, dateRange.from, dateRange.to);
+      const totalPrice = calculatePrice(
+        media.pricePerDay,
+        dateRange.from,
+        dateRange.to,
+        selectedPriceType,
+        media.pricePerWeek,
+        media.pricePerMonth
+      );
 
       // Cria a sessão de checkout no Stripe
       const response = await fetch('/api/stripe/checkout', {
@@ -167,8 +176,24 @@ export default function MediaDetailPage() {
 
   if (!media) return null;
 
+  // Inicializa o tipo de preço selecionado com o padrão da mídia
+  useEffect(() => {
+    if (media?.priceType) {
+      setSelectedPriceType(media.priceType);
+      // Reseta o dateRange quando o tipo de preço muda
+      setDateRange(undefined);
+    }
+  }, [media?.priceType]);
+
   const totalPrice = dateRange?.from && dateRange?.to
-    ? calculatePrice(media.pricePerDay, dateRange.from, dateRange.to)
+    ? calculatePrice(
+        media.pricePerDay,
+        dateRange.from,
+        dateRange.to,
+        selectedPriceType,
+        media.pricePerWeek,
+        media.pricePerMonth
+      )
     : 0;
 
   return (
@@ -235,11 +260,71 @@ export default function MediaDetailPage() {
             <Card className="sticky top-8">
               <CardContent className="p-6 space-y-6">
                 <div>
+                  {/* Seleção do tipo de preço */}
+                  <div className="mb-4">
+                    <label className="text-sm font-medium mb-2 block">Selecione o período:</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handlePriceTypeChange('day')}
+                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                          selectedPriceType === 'day'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        Por Dia
+                        {media.pricePerDay && (
+                          <span className="block text-xs mt-1 opacity-90">
+                            {formatCurrency(media.pricePerDay)}
+                          </span>
+                        )}
+                      </button>
+                      {media.pricePerWeek && (
+                        <button
+                          type="button"
+                          onClick={() => handlePriceTypeChange('week')}
+                          className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                            selectedPriceType === 'week'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          Por Semana
+                          <span className="block text-xs mt-1 opacity-90">
+                            {formatCurrency(media.pricePerWeek)}
+                          </span>
+                        </button>
+                      )}
+                      {media.pricePerMonth && (
+                        <button
+                          type="button"
+                          onClick={() => handlePriceTypeChange('month')}
+                          className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                            selectedPriceType === 'month'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          Por Mês
+                          <span className="block text-xs mt-1 opacity-90">
+                            {formatCurrency(media.pricePerMonth)}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Exibição do preço selecionado */}
                   <div className="flex items-baseline gap-2 mb-2">
                     <span className="text-2xl font-bold">
-                      {formatCurrency(media.pricePerDay)}
+                      {selectedPriceType === 'day' && formatCurrency(media.pricePerDay)}
+                      {selectedPriceType === 'week' && media.pricePerWeek && formatCurrency(media.pricePerWeek)}
+                      {selectedPriceType === 'month' && media.pricePerMonth && formatCurrency(media.pricePerMonth)}
                     </span>
-                    <span className="text-muted-foreground">/ dia</span>
+                    <span className="text-muted-foreground">
+                      / {selectedPriceType === 'day' ? 'dia' : selectedPriceType === 'week' ? 'semana' : 'mês'}
+                    </span>
                   </div>
                   {totalPrice > 0 && (
                     <div className="mt-4">
@@ -255,6 +340,7 @@ export default function MediaDetailPage() {
                   <DateRangePicker
                     dateRange={dateRange}
                     onDateRangeChange={setDateRange}
+                    priceType={selectedPriceType}
                   />
 
                   {checkingAvailability && (

@@ -23,7 +23,11 @@ export interface Media {
   mediaType: string;
   traffic: number;
   trafficUnit: string;
-  pricePerDay: number;
+  // Preços por período
+  pricePerDay: number; // Preço por dia (obrigatório)
+  pricePerWeek?: number; // Preço por semana (opcional)
+  pricePerMonth?: number; // Preço por mês (opcional)
+  priceType: 'day' | 'week' | 'month'; // Tipo de preço padrão para exibição e cálculo
   images: string[];
   coordinates: Coordinates;
   address: Address;
@@ -76,6 +80,10 @@ export interface User {
   role: 'client' | 'owner'; // Tipo de usuário: cliente ou owner
   companyId?: string; // ID da company à qual o usuário está atrelado (apenas SUPER ADMIN pode definir)
   isSuperAdmin?: boolean; // Se true, é super admin da plataforma (pode gerenciar companies e usuários)
+  cpf?: string; // CPF do cliente (apenas números)
+  cnpj?: string; // CNPJ do cliente (apenas números)
+  documentType?: 'cpf' | 'cnpj'; // Tipo de documento (CPF ou CNPJ)
+  phone?: string; // Telefone do cliente (apenas números, formato: (00) 00000-0000)
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }

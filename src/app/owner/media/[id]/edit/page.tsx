@@ -16,10 +16,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { useOwnerMidias } from '@/hooks/useOwnerMidias';
 import { Media, Address, Coordinates } from '@/types';
+import { ImageManager } from '@/components/ImageManager';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 
@@ -27,6 +28,7 @@ export default function EditMediaPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
+  const { userRole, loading: roleLoading } = useUserRole(); // Para verificar companyId
   const { updateMedia, loading } = useOwnerMidias();
 
   const mediaId = params.id as string;
@@ -40,6 +42,9 @@ export default function EditMediaPage() {
     city: '',
     state: '',
     pricePerDay: '', // Não editável, apenas exibição
+    pricePerWeek: '',
+    pricePerMonth: '',
+    priceType: 'day' as 'day' | 'week' | 'month',
     traffic: '',
     trafficUnit: 'pessoas/dia',
     // Endereço
@@ -51,8 +56,8 @@ export default function EditMediaPage() {
     // Coordenadas
     lat: '',
     lng: '',
-    // Imagens
-    images: '',
+    // Imagens (array de URLs)
+    images: [] as string[],
     // Stripe Connect Account ID
     ownerStripeAccountId: '',
     // Company
@@ -64,20 +69,37 @@ export default function EditMediaPage() {
 
   /**
    * Carrega os dados da mídia ao montar o componente
+   * IMPORTANTE: Aguarda o carregamento do userRole antes de verificar permissões
+   * IMPORTANTE: Aguarda o carregamento da autenticação antes de redirecionar
    */
   useEffect(() => {
+    // Aguarda o carregamento da autenticação antes de verificar
+    // Isso evita redirecionamento prematuro durante o refresh da página
+    if (authLoading) {
+      return; // Ainda carregando autenticação, aguarda
+    }
+
+    // Só redireciona se o carregamento estiver completo e o usuário não estiver autenticado
     if (!user) {
       router.push('/login');
       return;
     }
 
+    // Aguarda o carregamento do userRole antes de buscar a mídia
+    if (roleLoading) {
+      return; // Ainda carregando, aguarda
+    }
+
     const fetchMedia = async () => {
       try {
         setLoadingMedia(true);
+        setError(null); // Limpa erros anteriores
+        
         const mediaDoc = await getDoc(doc(db, 'media', mediaId));
 
         if (!mediaDoc.exists()) {
           setError('Mídia não encontrada');
+          setLoadingMedia(false);
           return;
         }
 
@@ -86,9 +108,18 @@ export default function EditMediaPage() {
           ...mediaDoc.data(),
         } as Media;
 
-        // Verifica se o usuário é o owner
-        if (mediaData.ownerId !== user.uid) {
+        // Verifica se a mídia pertence à company do usuário
+        // IMPORTANTE: As mídias são atreladas à company, não ao usuário diretamente
+        // Verifica usando companyId, NÃO ownerId
+        if (!userRole?.companyId) {
+          setError('Você não está atrelado a uma company');
+          setLoadingMedia(false);
+          return;
+        }
+
+        if (mediaData.companyId !== userRole.companyId) {
           setError('Você não tem permissão para editar esta mídia');
+          setLoadingMedia(false);
           return;
         }
 
@@ -101,6 +132,9 @@ export default function EditMediaPage() {
           city: mediaData.city || '',
           state: mediaData.state || '',
           pricePerDay: mediaData.pricePerDay?.toString() || '',
+          pricePerWeek: mediaData.pricePerWeek?.toString() || '',
+          pricePerMonth: mediaData.pricePerMonth?.toString() || '',
+          priceType: mediaData.priceType || 'day',
           traffic: mediaData.traffic?.toString() || '',
           trafficUnit: mediaData.trafficUnit || 'pessoas/dia',
           street: mediaData.address?.street || '',
@@ -110,7 +144,7 @@ export default function EditMediaPage() {
           complement: mediaData.address?.complement || '',
           lat: mediaData.coordinates?.lat?.toString() || '',
           lng: mediaData.coordinates?.lng?.toString() || '',
-          images: mediaData.images?.join(', ') || '',
+          images: mediaData.images || [],
           ownerStripeAccountId: mediaData.ownerStripeAccountId || '',
           companyName: mediaData.companyName || '',
         });
@@ -123,12 +157,13 @@ export default function EditMediaPage() {
     };
 
     fetchMedia();
-  }, [user, mediaId, router]);
+  }, [user, mediaId, router, userRole?.companyId, roleLoading, authLoading]);
 
   /**
    * Handler para mudanças nos campos do formulário
+   * Aceita string ou array de strings (para imagens)
    */
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | string[]) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -180,7 +215,7 @@ export default function EditMediaPage() {
       setError('Coordenadas devem ser números válidos');
       return false;
     }
-    if (!formData.images.trim()) {
+    if (formData.images.length === 0) {
       setError('Pelo menos uma imagem é obrigatória');
       return false;
     }
@@ -207,11 +242,8 @@ export default function EditMediaPage() {
       setError(null);
       setSuccess(false);
 
-      // Processa imagens
-      const imagesArray = formData.images
-        .split(',')
-        .map((img) => img.trim())
-        .filter((img) => img.length > 0);
+      // As imagens já estão em formato de array
+      const imagesArray = formData.images;
 
       // Monta o objeto de endereço
       const address: Address = {
@@ -238,6 +270,9 @@ export default function EditMediaPage() {
         mediaType: formData.mediaType.trim(),
         traffic: parseInt(formData.traffic) || 0,
         trafficUnit: formData.trafficUnit,
+        pricePerWeek: formData.pricePerWeek ? parseFloat(formData.pricePerWeek) : undefined,
+        pricePerMonth: formData.pricePerMonth ? parseFloat(formData.pricePerMonth) : undefined,
+        priceType: formData.priceType,
         images: imagesArray,
         coordinates,
         address,
@@ -255,7 +290,8 @@ export default function EditMediaPage() {
     }
   };
 
-  if (authLoading || loadingMedia) {
+  // Mostra loading enquanto autenticação ou mídia estão carregando
+  if (authLoading || loadingMedia || roleLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
@@ -266,8 +302,10 @@ export default function EditMediaPage() {
     );
   }
 
+  // Só verifica se o usuário não está autenticado após o carregamento estar completo
+  // Isso evita redirecionamento prematuro durante o refresh
   if (!user) {
-    return null;
+    return null; // O useEffect já redirecionou para /login
   }
 
   if (error && !media) {
@@ -356,17 +394,76 @@ export default function EditMediaPage() {
                       required
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="pricePerDay">Preço por Dia (R$)</Label>
-                    <Input
-                      id="pricePerDay"
-                      value={formData.pricePerDay}
-                      disabled
-                      className="bg-gray-100"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      O preço não pode ser alterado após a criação
-                    </p>
+                  {/* Seção de Preços */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Preços</h3>
+                    
+                    {/* Preço por Dia (não editável) */}
+                    <div>
+                      <Label htmlFor="pricePerDay">Preço por Dia (R$)</Label>
+                      <Input
+                        id="pricePerDay"
+                        value={formData.pricePerDay}
+                        disabled
+                        className="bg-gray-100"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        O preço por dia não pode ser alterado após a criação
+                      </p>
+                    </div>
+
+                    {/* Preço por Semana (opcional, editável) */}
+                    <div>
+                      <Label htmlFor="pricePerWeek">Preço por Semana (R$) (Opcional)</Label>
+                      <Input
+                        id="pricePerWeek"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.pricePerWeek}
+                        onChange={(e) => handleChange('pricePerWeek', e.target.value)}
+                        placeholder="6000.00"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Permite que clientes reservem por semana completa
+                      </p>
+                    </div>
+
+                    {/* Preço por Mês (opcional, editável) */}
+                    <div>
+                      <Label htmlFor="pricePerMonth">Preço por Mês (R$) (Opcional)</Label>
+                      <Input
+                        id="pricePerMonth"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.pricePerMonth}
+                        onChange={(e) => handleChange('pricePerMonth', e.target.value)}
+                        placeholder="25000.00"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Permite que clientes reservem por mês completo
+                      </p>
+                    </div>
+
+                    {/* Tipo de Preço Padrão (editável) */}
+                    <div>
+                      <Label htmlFor="priceType">Tipo de Preço Padrão *</Label>
+                      <select
+                        id="priceType"
+                        value={formData.priceType}
+                        onChange={(e) => handleChange('priceType', e.target.value as 'day' | 'week' | 'month')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      >
+                        <option value="day">Por Dia</option>
+                        {formData.pricePerWeek && <option value="week">Por Semana</option>}
+                        {formData.pricePerMonth && <option value="month">Por Mês</option>}
+                      </select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Tipo de preço que será exibido por padrão na página da mídia
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -490,19 +587,13 @@ export default function EditMediaPage() {
                 <CardTitle>Imagens</CardTitle>
               </CardHeader>
               <CardContent>
-                <div>
-                  <Label htmlFor="images">URLs das Imagens *</Label>
-                  <Textarea
-                    id="images"
-                    value={formData.images}
-                    onChange={(e) => handleChange('images', e.target.value)}
-                    rows={4}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Separe múltiplas URLs por vírgula
-                  </p>
-                </div>
+                <ImageManager
+                  images={formData.images}
+                  onChange={(images) => handleChange('images', images)}
+                  maxImages={10}
+                  maxSizeMB={5}
+                  required
+                />
               </CardContent>
             </Card>
 

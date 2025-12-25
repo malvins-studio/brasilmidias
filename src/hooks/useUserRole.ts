@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from './useAuth';
-import { User } from '@/types';
+import { User, Company } from '@/types';
 
 /**
  * Hook para gerenciar o role do usuário
@@ -15,6 +15,7 @@ import { User } from '@/types';
 export function useUserRole() {
   const { user } = useAuth();
   const [userRole, setUserRole] = useState<User | null>(null);
+  const [company, setCompany] = useState<Company | null>(null); // Company do usuário (se tiver)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,10 +39,34 @@ export function useUserRole() {
 
       if (userSnap.exists()) {
         // Usuário já existe, retorna os dados
-        setUserRole({
+        const userData = {
           id: userSnap.id,
           ...userSnap.data(),
-        } as User);
+        } as User;
+        
+        setUserRole(userData);
+
+        // Se o usuário tem companyId, busca informações da company
+        if (userData.companyId) {
+          try {
+            const companyRef = doc(db, 'companies', userData.companyId);
+            const companySnap = await getDoc(companyRef);
+            
+            if (companySnap.exists()) {
+              setCompany({
+                id: companySnap.id,
+                ...companySnap.data(),
+              } as Company);
+            } else {
+              setCompany(null);
+            }
+          } catch (companyError) {
+            console.error('Error fetching company:', companyError);
+            setCompany(null);
+          }
+        } else {
+          setCompany(null);
+        }
       } else {
         // Usuário não existe, cria um novo com role 'client'
         const newUser: Omit<User, 'id'> = {
@@ -126,6 +151,7 @@ export function useUserRole() {
       fetchUserRole();
     } else {
       setUserRole(null);
+      setCompany(null);
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,6 +159,7 @@ export function useUserRole() {
 
   return {
     userRole,
+    company, // Company do usuário (se tiver)
     loading,
     error,
     isOwner,

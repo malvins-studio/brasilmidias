@@ -27,6 +27,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useOwnerMidias } from '@/hooks/useOwnerMidias';
 import { Address, Coordinates } from '@/types';
+import { ImageManager } from '@/components/ImageManager';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 
@@ -43,6 +44,9 @@ export default function NewMediaPage() {
     city: '',
     state: '',
     pricePerDay: '',
+    pricePerWeek: '',
+    pricePerMonth: '',
+    priceType: 'day' as 'day' | 'week' | 'month',
     traffic: '',
     trafficUnit: 'pessoas/dia',
     // Endereço
@@ -54,8 +58,8 @@ export default function NewMediaPage() {
     // Coordenadas
     lat: '',
     lng: '',
-    // Imagens (URLs separadas por vírgula)
-    images: '',
+    // Imagens (array de URLs)
+    images: [] as string[],
     // Stripe Connect Account ID (opcional)
     ownerStripeAccountId: '',
     // Company (pode ser o nome da empresa do owner)
@@ -67,8 +71,9 @@ export default function NewMediaPage() {
 
   /**
    * Handler para mudanças nos campos do formulário
+   * Aceita string ou array de strings (para imagens)
    */
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | string[]) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -98,7 +103,18 @@ export default function NewMediaPage() {
       return false;
     }
     if (!formData.pricePerDay || parseFloat(formData.pricePerDay) <= 0) {
-      setError('Preço por dia deve ser maior que zero');
+      setError('Preço por dia é obrigatório e deve ser maior que zero');
+      return false;
+    }
+    
+    // Valida preços opcionais se preenchidos
+    if (formData.pricePerWeek && parseFloat(formData.pricePerWeek) <= 0) {
+      setError('Preço por semana deve ser maior que zero');
+      return false;
+    }
+    
+    if (formData.pricePerMonth && parseFloat(formData.pricePerMonth) <= 0) {
+      setError('Preço por mês deve ser maior que zero');
       return false;
     }
     if (!formData.street.trim()) {
@@ -125,7 +141,7 @@ export default function NewMediaPage() {
       setError('Coordenadas devem ser números válidos');
       return false;
     }
-    if (!formData.images.trim()) {
+    if (formData.images.length === 0) {
       setError('Pelo menos uma imagem é obrigatória');
       return false;
     }
@@ -152,11 +168,8 @@ export default function NewMediaPage() {
       setError(null);
       setSuccess(false);
 
-      // Processa imagens (separa por vírgula e remove espaços)
-      const imagesArray = formData.images
-        .split(',')
-        .map((img) => img.trim())
-        .filter((img) => img.length > 0);
+      // As imagens já estão em formato de array
+      const imagesArray = formData.images;
 
       // Monta o objeto de endereço
       const address: Address = {
@@ -202,6 +215,9 @@ export default function NewMediaPage() {
         traffic: parseInt(formData.traffic) || 0,
         trafficUnit: formData.trafficUnit,
         pricePerDay: parseFloat(formData.pricePerDay),
+        pricePerWeek: formData.pricePerWeek ? parseFloat(formData.pricePerWeek) : undefined,
+        pricePerMonth: formData.pricePerMonth ? parseFloat(formData.pricePerMonth) : undefined,
+        priceType: formData.priceType,
         images: imagesArray,
         coordinates,
         address,
@@ -223,6 +239,8 @@ export default function NewMediaPage() {
     }
   };
 
+  // Mostra loading enquanto autenticação está carregando
+  // Isso evita redirecionamento prematuro durante o refresh da página
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -234,6 +252,7 @@ export default function NewMediaPage() {
     );
   }
 
+  // Só redireciona se o carregamento estiver completo e o usuário não estiver autenticado
   if (!user) {
     router.push('/login');
     return null;
@@ -309,6 +328,13 @@ export default function NewMediaPage() {
                       required
                     />
                   </div>
+                </div>
+
+                {/* Seção de Preços */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Preços</h3>
+                  
+                  {/* Preço por Dia (obrigatório) */}
                   <div>
                     <Label htmlFor="pricePerDay">Preço por Dia (R$) *</Label>
                     <Input
@@ -321,6 +347,62 @@ export default function NewMediaPage() {
                       placeholder="1000.00"
                       required
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Preço base obrigatório para cálculo diário
+                    </p>
+                  </div>
+
+                  {/* Preço por Semana (opcional) */}
+                  <div>
+                    <Label htmlFor="pricePerWeek">Preço por Semana (R$) (Opcional)</Label>
+                    <Input
+                      id="pricePerWeek"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.pricePerWeek}
+                      onChange={(e) => handleChange('pricePerWeek', e.target.value)}
+                      placeholder="6000.00"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Permite que clientes reservem por semana completa
+                    </p>
+                  </div>
+
+                  {/* Preço por Mês (opcional) */}
+                  <div>
+                    <Label htmlFor="pricePerMonth">Preço por Mês (R$) (Opcional)</Label>
+                    <Input
+                      id="pricePerMonth"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.pricePerMonth}
+                      onChange={(e) => handleChange('pricePerMonth', e.target.value)}
+                      placeholder="25000.00"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Permite que clientes reservem por mês completo
+                    </p>
+                  </div>
+
+                  {/* Tipo de Preço Padrão */}
+                  <div>
+                    <Label htmlFor="priceType">Tipo de Preço Padrão *</Label>
+                    <select
+                      id="priceType"
+                      value={formData.priceType}
+                      onChange={(e) => handleChange('priceType', e.target.value as 'day' | 'week' | 'month')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option value="day">Por Dia</option>
+                      {formData.pricePerWeek && <option value="week">Por Semana</option>}
+                      {formData.pricePerMonth && <option value="month">Por Mês</option>}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Tipo de preço que será exibido por padrão na página da mídia
+                    </p>
                   </div>
                 </div>
 
@@ -456,20 +538,13 @@ export default function NewMediaPage() {
                 <CardTitle>Imagens</CardTitle>
               </CardHeader>
               <CardContent>
-                <div>
-                  <Label htmlFor="images">URLs das Imagens *</Label>
-                  <Textarea
-                    id="images"
-                    value={formData.images}
-                    onChange={(e) => handleChange('images', e.target.value)}
-                    placeholder="https://exemplo.com/imagem1.jpg, https://exemplo.com/imagem2.jpg"
-                    rows={4}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Separe múltiplas URLs por vírgula
-                  </p>
-                </div>
+                <ImageManager
+                  images={formData.images}
+                  onChange={(images) => handleChange('images', images)}
+                  maxImages={10}
+                  maxSizeMB={5}
+                  required
+                />
               </CardContent>
             </Card>
 
