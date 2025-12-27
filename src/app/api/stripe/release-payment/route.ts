@@ -4,7 +4,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
+  apiVersion: '2025-12-15.clover',
 });
 
 export async function POST(request: NextRequest) {
@@ -51,9 +51,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verifica se o pagamento já foi feito com split automático
+    let hasAutomaticSplit = false;
+    if (reservation.paymentIntentId) {
+      try {
+        const paymentIntent = await stripe.paymentIntents.retrieve(
+          reservation.paymentIntentId as string
+        );
+        // Se o PaymentIntent tem transfer_data, significa que o split foi automático
+        // e o dinheiro já foi para o owner no momento do pagamento
+        hasAutomaticSplit = !!(paymentIntent.transfer_data?.destination);
+      } catch (error) {
+        console.error('Error retrieving payment intent:', error);
+      }
+    }
+
+    // Busca o stripeAccountId do owner através da mídia
+    let ownerStripeAccountId: string | null = null;
+    try {
+      const mediaDoc = await getDoc(doc(db, 'media', reservation.mediaId));
+      if (mediaDoc.exists()) {
+        const media = mediaDoc.data();
+        if (media.ownerId) {
+          const ownerDoc = await getDoc(doc(db, 'users', media.ownerId));
+          if (ownerDoc.exists()) {
+            const ownerData = ownerDoc.data();
+            ownerStripeAccountId = ownerData.stripeAccountId || null;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching owner stripe account:', error);
+    }
+
     // Se não há ownerStripeAccountId, apenas marca como liberado
     // (o dinheiro já está na conta da plataforma)
-    if (!reservation.ownerStripeAccountId) {
+    if (!ownerStripeAccountId) {
       await updateDoc(reservationRef, {
         paymentStatus: 'released',
         paymentReleasedAt: Timestamp.now(),
@@ -66,20 +99,31 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Se há ownerStripeAccountId, transfere o valor para o owner
-    if (reservation.paymentIntentId && reservation.ownerAmount) {
-      try {
-        // Busca o PaymentIntent para obter o charge
-        const paymentIntent = await stripe.paymentIntents.retrieve(
-          reservation.paymentIntentId as string
-        );
+    // Se o split foi automático, o dinheiro já foi para o owner no momento do pagamento
+    // Apenas marca como liberado
+    if (hasAutomaticSplit) {
+      await updateDoc(reservationRef, {
+        paymentStatus: 'released',
+        paymentReleasedAt: Timestamp.now(),
+        status: 'completed',
+      });
 
+      return NextResponse.json({ 
+        success: true,
+        message: 'Pagamento liberado (split automático já foi processado pelo Stripe)'
+      });
+    }
+
+    // Se há ownerStripeAccountId mas o split não foi automático (caso legado),
+    // transfere o valor manualmente para o owner
+    if (reservation.paymentIntentId && reservation.ownerAmount && ownerStripeAccountId) {
+      try {
         // Cria uma transferência para o owner (Stripe Connect)
         // O valor já está na conta da plataforma, então transferimos o ownerAmount
         const transfer = await stripe.transfers.create({
           amount: Math.round(reservation.ownerAmount * 100), // Converte para centavos
           currency: 'brl',
-          destination: reservation.ownerStripeAccountId as string,
+          destination: ownerStripeAccountId,
           description: `Pagamento para owner - Reserva ${reservationId}`,
         });
 
@@ -95,20 +139,23 @@ export async function POST(request: NextRequest) {
           message: 'Pagamento liberado e transferido para o owner',
           transferId: transfer.id
         });
-      } catch (transferError: any) {
+      } catch (transferError: unknown) {
         console.error('Error creating transfer:', transferError);
+        const errorMessage = transferError instanceof Error
+          ? transferError.message
+          : 'Erro desconhecido na transferência';
         // Se a transferência falhar, ainda marca como liberado mas registra o erro
         await updateDoc(reservationRef, {
           paymentStatus: 'released',
           paymentReleasedAt: Timestamp.now(),
           status: 'completed',
-          transferError: transferError.message,
+          transferError: errorMessage,
         });
 
         return NextResponse.json({ 
           success: true,
           warning: 'Pagamento marcado como liberado, mas transferência falhou. Verifique manualmente.',
-          error: transferError.message
+          error: errorMessage
         });
       }
     }
@@ -124,10 +171,13 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Pagamento liberado'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error releasing payment:', error);
+    const errorMessage = error instanceof Error
+      ? error.message
+      : 'Erro ao liberar pagamento';
     return NextResponse.json(
-      { error: error.message || 'Erro ao liberar pagamento' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

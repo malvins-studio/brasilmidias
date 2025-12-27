@@ -33,6 +33,20 @@ export async function POST(request: NextRequest) {
 
     const media = mediaDoc.data();
     
+    // Busca o stripeAccountId do owner através do User
+    let ownerStripeAccountId: string | null = null;
+    if (media.ownerId) {
+      try {
+        const ownerDoc = await getDoc(doc(db, 'users', media.ownerId));
+        if (ownerDoc.exists()) {
+          const ownerData = ownerDoc.data();
+          ownerStripeAccountId = ownerData.stripeAccountId || null;
+        }
+      } catch (error) {
+        console.error('Error fetching owner data:', error);
+      }
+    }
+    
     // Calcula o split de pagamento
     const platformFee = Math.round(totalPrice * (PLATFORM_FEE_PERCENTAGE / 100));
     const ownerAmount = totalPrice - platformFee;
@@ -48,12 +62,11 @@ export async function POST(request: NextRequest) {
       paymentStatus: 'pending',
       platformFee,
       ownerAmount,
-      ownerStripeAccountId: media.ownerStripeAccountId || null,
       createdAt: Timestamp.now(),
     });
 
     // Cria a sessão de checkout do Stripe
-    // Se o owner tem uma conta Stripe Connect, usa split payment
+    // Se o owner tem uma conta Stripe Connect, usa split payment automático
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ['card'],
       line_items: [
@@ -64,7 +77,7 @@ export async function POST(request: NextRequest) {
               name: `${media.name} - ${media.city}`,
               description: `Aluguel de ${new Date(startDate).toLocaleDateString('pt-BR')} até ${new Date(endDate).toLocaleDateString('pt-BR')}`,
             },
-            unit_amount: Math.round(totalPrice * 100), // Stripe usa centavos
+            unit_amount: Math.round(totalPrice * 100), 
           },
           quantity: 1,
         },
@@ -79,9 +92,15 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // Nota: Para Checkout Sessions, o split será feito via transferência manual
-    // quando o pagamento for liberado. Isso permite manter o pagamento bloqueado
-    // até o final do período de aluguel.
+    // Se o owner tem uma conta Stripe Connect, configura split automático
+    if (ownerStripeAccountId) {
+      sessionParams.payment_intent_data = {
+        application_fee_amount: Math.round(platformFee * 100), 
+        transfer_data: {
+          destination: ownerStripeAccountId,
+        },
+      };
+    }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
 

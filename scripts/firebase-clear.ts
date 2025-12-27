@@ -34,7 +34,8 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
 
 // Inicializa Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Especifica o ID do banco de dados Firestore
+const db = getFirestore(app, 'midiasbrasil');
 
 // IDs das empresas de exemplo (do firebase-examples.json)
 const EXAMPLE_COMPANY_IDS = [

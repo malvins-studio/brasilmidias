@@ -34,7 +34,6 @@ export interface Media {
   companyId: string;
   companyName: string;
   ownerId: string; // ID do usuário owner da mídia
-  ownerStripeAccountId?: string; // Stripe Connect account ID do owner
   deleted?: boolean; // Exclusão lógica - se true, a mídia não aparece nas buscas
   createdAt: Timestamp;
   updatedAt?: Timestamp; // Data da última atualização
@@ -54,7 +53,6 @@ export interface Reservation {
   paymentStatus?: 'pending' | 'paid' | 'held' | 'released' | 'refunded';
   platformFee?: number; // Taxa da plataforma
   ownerAmount?: number; // Valor que será pago ao owner
-  ownerStripeAccountId?: string; // Stripe Connect account ID do owner
   paymentReleasedAt?: Timestamp; // Data em que o pagamento foi liberado
 }
 
@@ -84,6 +82,7 @@ export interface User {
   cnpj?: string; // CNPJ do cliente (apenas números)
   documentType?: 'cpf' | 'cnpj'; // Tipo de documento (CPF ou CNPJ)
   phone?: string; // Telefone do cliente (apenas números, formato: (00) 00000-0000)
+  stripeAccountId?: string; // ID da conta Stripe Connect do owner
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }

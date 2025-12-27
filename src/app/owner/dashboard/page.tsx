@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { ReservationsTab } from './components/ReservationsTab';
 import { MediasTab } from './components/MediasTab';
+import { StripeConnectCard } from './components/StripeConnectCard';
 
 export default function OwnerDashboardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -291,6 +292,11 @@ export default function OwnerDashboardPage() {
           <p className="text-muted-foreground">
             Gerencie suas mídias e visualize suas reservas
           </p>
+        </div>
+
+        {/* Stripe Connect Card */}
+        <div className="mb-8">
+          <StripeConnectCard />
         </div>
 
         {/* Estatísticas */}

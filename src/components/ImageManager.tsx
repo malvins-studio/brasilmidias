@@ -14,18 +14,14 @@
  * - Formatos aceitos: jpg, jpeg, png, webp
  */
 
-import { useState } from 'react';
-// Upload desabilitado temporariamente - imports comentados
-// import { useRef } from 'react';
-// import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-// import { storage } from '@/lib/firebase';
+import { useState, useRef } from 'react';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { X, Link as LinkIcon } from 'lucide-react';
-// Upload desabilitado temporariamente
-// import { Upload, Image as ImageIcon } from 'lucide-react';
+import { X, Link as LinkIcon, Upload, Image as ImageIcon } from 'lucide-react';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 
 interface ImageManagerProps {
@@ -67,9 +63,8 @@ export function ImageManager({
   const [urlError, setUrlError] = useState<string | null>(null);
   // Rastreia quais imagens falharam ao carregar (por índice)
   const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
-  // Upload desabilitado temporariamente
-  // const [uploading, setUploading] = useState<string | null>(null); // ID da imagem sendo enviada
-  // const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<string | null>(null); // Nome do arquivo sendo enviado
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   /**
    * Adiciona uma imagem via URL
@@ -136,9 +131,7 @@ export function ImageManager({
 
   /**
    * Faz upload de uma imagem para o Firebase Storage
-   * DESABILITADO TEMPORARIAMENTE - TODO: Habilitar quando necessário
    */
-  /* eslint-disable @typescript-eslint/no-unused-vars */
   const handleFileUpload = async (file: File) => {
     // Valida tipo de arquivo
     if (!isValidImageType(file)) {
@@ -158,9 +151,6 @@ export function ImageManager({
       return;
     }
 
-    // Upload desabilitado temporariamente
-    throw new Error('Upload de imagens está desabilitado temporariamente');
-    /*
     try {
       setUploading(file.name);
       setUrlError(null);
@@ -168,7 +158,8 @@ export function ImageManager({
       // Cria uma referência única para o arquivo no Storage
       // Usa timestamp + nome do arquivo para evitar conflitos
       const timestamp = Date.now();
-      const fileName = `${timestamp}_${file.name}`;
+      const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `${timestamp}_${sanitizedFileName}`;
       const storageRef = ref(storage, `media-images/${fileName}`);
 
       // Faz upload do arquivo
@@ -193,41 +184,32 @@ export function ImageManager({
         fileInputRef.current.value = '';
       }
     }
-    */
   };
-  /* eslint-enable @typescript-eslint/no-unused-vars */
 
   /**
    * Handler para quando um arquivo é selecionado
-   * DESABILITADO TEMPORARIAMENTE
    */
-  /* eslint-disable @typescript-eslint/no-unused-vars */
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Upload desabilitado temporariamente
-    e.preventDefault();
-    // const file = e.target.files?.[0];
-    // if (file) {
-    //   handleFileUpload(file);
-    // }
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
   };
 
   /**
    * Handler para drag and drop
-   * DESABILITADO TEMPORARIAMENTE
    */
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    // Upload desabilitado temporariamente
-    // const file = e.dataTransfer.files?.[0];
-    // if (file) {
-    //   handleFileUpload(file);
-    // }
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
-  /* eslint-enable @typescript-eslint/no-unused-vars */
 
   return (
     <div className="space-y-4">
@@ -277,14 +259,16 @@ export function ImageManager({
         </div>
       </div>
 
-      {/* Upload de arquivo - DESABILITADO TEMPORARIAMENTE */}
-      {/* TODO: Habilitar upload de imagens quando necessário */}
-      {/*
+      {/* Upload de arquivo */}
       <div className="space-y-2">
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
-          className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary/50 transition-colors"
+          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+            uploading || images.length >= maxImages
+              ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+              : 'border-gray-300 hover:border-primary/50 cursor-pointer'
+          }`}
         >
           <input
             ref={fileInputRef}
@@ -297,7 +281,9 @@ export function ImageManager({
           />
           <label
             htmlFor="image-upload"
-            className="cursor-pointer flex flex-col items-center gap-2"
+            className={`flex flex-col items-center gap-2 ${
+              uploading || images.length >= maxImages ? 'cursor-not-allowed' : 'cursor-pointer'
+            }`}
           >
             <Upload className="h-8 w-8 text-muted-foreground" />
             <div>
@@ -317,7 +303,6 @@ export function ImageManager({
           </p>
         )}
       </div>
-      */}
 
       {/* Lista de imagens adicionadas */}
       {images.length > 0 && (

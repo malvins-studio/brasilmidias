@@ -58,8 +58,6 @@ export default function EditMediaPage() {
     lng: '',
     // Imagens (array de URLs)
     images: [] as string[],
-    // Stripe Connect Account ID
-    ownerStripeAccountId: '',
     // Company
     companyName: '',
   });
@@ -145,7 +143,6 @@ export default function EditMediaPage() {
           lat: mediaData.coordinates?.lat?.toString() || '',
           lng: mediaData.coordinates?.lng?.toString() || '',
           images: mediaData.images || [],
-          ownerStripeAccountId: mediaData.ownerStripeAccountId || '',
           companyName: mediaData.companyName || '',
         });
       } catch (err) {
@@ -277,7 +274,6 @@ export default function EditMediaPage() {
         coordinates,
         address,
         companyName: formData.companyName.trim() || formData.name.trim(),
-        ownerStripeAccountId: formData.ownerStripeAccountId.trim() || undefined,
       });
 
       setSuccess(true);
@@ -609,14 +605,6 @@ export default function EditMediaPage() {
                     id="companyName"
                     value={formData.companyName}
                     onChange={(e) => handleChange('companyName', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="ownerStripeAccountId">Stripe Connect Account ID</Label>
-                  <Input
-                    id="ownerStripeAccountId"
-                    value={formData.ownerStripeAccountId}
-                    onChange={(e) => handleChange('ownerStripeAccountId', e.target.value)}
                   />
                 </div>
               </CardContent>

@@ -110,7 +110,6 @@ pnpm dev
   paymentStatus?: 'pending' | 'paid' | 'held' | 'released' | 'refunded'
   platformFee?: number // Taxa da plataforma
   ownerAmount?: number // Valor que será pago ao owner
-  ownerStripeAccountId?: string // Stripe Connect account ID do owner
   paymentReleasedAt?: Timestamp // Data em que o pagamento foi liberado
 }
 ```

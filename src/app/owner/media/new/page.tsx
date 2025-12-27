@@ -60,8 +60,6 @@ export default function NewMediaPage() {
     lng: '',
     // Imagens (array de URLs)
     images: [] as string[],
-    // Stripe Connect Account ID (opcional)
-    ownerStripeAccountId: '',
     // Company (pode ser o nome da empresa do owner)
     companyName: '',
   });
@@ -223,7 +221,6 @@ export default function NewMediaPage() {
         address,
         companyId: userRole.companyId, // Usa o companyId do usuário
         companyName: companyData.name || formData.companyName.trim() || formData.name.trim(),
-        ownerStripeAccountId: formData.ownerStripeAccountId.trim() || undefined,
       };
 
       await createMedia(mediaData);
@@ -562,18 +559,6 @@ export default function NewMediaPage() {
                     onChange={(e) => handleChange('companyName', e.target.value)}
                     placeholder="Nome da sua empresa"
                   />
-                </div>
-                <div>
-                  <Label htmlFor="ownerStripeAccountId">Stripe Connect Account ID</Label>
-                  <Input
-                    id="ownerStripeAccountId"
-                    value={formData.ownerStripeAccountId}
-                    onChange={(e) => handleChange('ownerStripeAccountId', e.target.value)}
-                    placeholder="acct_1234567890"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    ID da sua conta Stripe Connect para receber pagamentos diretamente
-                  </p>
                 </div>
               </CardContent>
             </Card>
