@@ -221,6 +221,7 @@ export default function NewMediaPage() {
         address,
         companyId: userRole.companyId, // Usa o companyId do usuário
         companyName: companyData.name || formData.companyName.trim() || formData.name.trim(),
+        ownerId: user?.uid || '', // ID do usuário owner da mídia
       };
 
       await createMedia(mediaData);

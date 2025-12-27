@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Calendar, MapPin, DollarSign, CheckCircle, Clock, XCircle } from 'lucide-react';
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -55,7 +55,7 @@ export default function DashboardPage() {
       const reservationsData: (Reservation & { media?: Media })[] = [];
 
       for (const docSnap of querySnapshot.docs) {
-        const reservation = {
+        const reservation: Reservation & { media?: Media } = {
           id: docSnap.id,
           ...docSnap.data(),
         } as Reservation;
@@ -313,6 +313,21 @@ export default function DashboardPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container mx-auto px-4 py-12 text-center">
+          Carregando...
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
 

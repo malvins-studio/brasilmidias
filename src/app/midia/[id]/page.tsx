@@ -89,6 +89,15 @@ export default function MediaDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange?.from?.getTime(), dateRange?.to?.getTime(), media?.id]);
 
+  // Inicializa o tipo de preço selecionado com o padrão da mídia
+  useEffect(() => {
+    if (media?.priceType) {
+      setSelectedPriceType(media.priceType);
+      // Reseta o dateRange quando o tipo de preço muda
+      setDateRange(undefined);
+    }
+  }, [media?.priceType]);
+
   const handleReserve = async () => {
     if (!user) {
       router.push('/login');
@@ -149,6 +158,12 @@ export default function MediaDetailPage() {
     }
   };
 
+  const handlePriceTypeChange = (priceType: 'day' | 'week' | 'month') => {
+    setSelectedPriceType(priceType);
+    // Reseta o dateRange quando o tipo de preço muda para recalcular o preço
+    setDateRange(undefined);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -175,15 +190,6 @@ export default function MediaDetailPage() {
   }
 
   if (!media) return null;
-
-  // Inicializa o tipo de preço selecionado com o padrão da mídia
-  useEffect(() => {
-    if (media?.priceType) {
-      setSelectedPriceType(media.priceType);
-      // Reseta o dateRange quando o tipo de preço muda
-      setDateRange(undefined);
-    }
-  }, [media?.priceType]);
 
   const totalPrice = dateRange?.from && dateRange?.to
     ? calculatePrice(
