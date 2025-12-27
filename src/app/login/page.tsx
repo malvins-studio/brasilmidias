@@ -7,6 +7,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  translateFirebaseError, 
+  validateCPF, 
+  validateCNPJ, 
+  formatCPF, 
+  formatCNPJ,
+  validatePhone,
+  formatPhone,
+  applyPhoneMask,
+  removeNonNumeric 
+} from '@/lib/utils';
+import { AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -15,23 +27,266 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // Campos de CPF/CNPJ (apenas no cadastro)
+  const [documentType, setDocumentType] = useState<'cpf' | 'cnpj'>('cpf');
+  const [document, setDocument] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  
+  // Estados de validação (mensagens de erro por campo)
+  const [errors, setErrors] = useState<{
+    email?: string;
+    password?: string;
+    name?: string;
+    document?: string;
+    phone?: string;
+  }>({});
+  
+  // Estados para controlar quando validar (após o usuário interagir)
+  const [touched, setTouched] = useState<{
+    email?: boolean;
+    password?: boolean;
+    name?: boolean;
+    document?: boolean;
+    phone?: boolean;
+  }>({});
+  
   const { login, signup, loginWithGoogle } = useAuth();
   const router = useRouter();
+
+  // Validação de email
+  const validateEmail = (email: string): string | undefined => {
+    if (!email) {
+      return 'Email é obrigatório';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return 'Email inválido';
+    }
+    return undefined;
+  };
+
+  // Validação de senha
+  const validatePassword = (password: string): string | undefined => {
+    if (!password) {
+      return 'Senha é obrigatória';
+    }
+    if (password.length < 6) {
+      return 'A senha deve ter pelo menos 6 caracteres';
+    }
+    return undefined;
+  };
+
+  // Validação do documento
+  const validateDocument = (doc: string, type: 'cpf' | 'cnpj'): string | undefined => {
+    const cleanDoc = removeNonNumeric(doc);
+    
+    if (!cleanDoc) {
+      return 'CPF ou CNPJ é obrigatório';
+    }
+    
+    if (type === 'cpf') {
+      if (cleanDoc.length !== 11) {
+        return 'CPF deve ter 11 dígitos';
+      }
+      if (!validateCPF(cleanDoc)) {
+        return 'CPF inválido';
+      }
+    } else {
+      if (cleanDoc.length !== 14) {
+        return 'CNPJ deve ter 14 dígitos';
+      }
+      if (!validateCNPJ(cleanDoc)) {
+        return 'CNPJ inválido';
+      }
+    }
+    
+    return undefined;
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (touched.email) {
+      const error = validateEmail(value);
+      setErrors(prev => ({ ...prev, email: error }));
+    }
+  };
+
+  const handleEmailBlur = () => {
+    setTouched(prev => ({ ...prev, email: true }));
+    const error = validateEmail(email);
+    setErrors(prev => ({ ...prev, email: error }));
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (touched.password) {
+      const error = validatePassword(value);
+      setErrors(prev => ({ ...prev, password: error }));
+    }
+  };
+
+  const handlePasswordBlur = () => {
+    setTouched(prev => ({ ...prev, password: true }));
+    const error = validatePassword(password);
+    setErrors(prev => ({ ...prev, password: error }));
+  };
+
+  const handleDocumentChange = (value: string) => {
+    // Remove caracteres não numéricos
+    const cleanValue = removeNonNumeric(value);
+    setDocument(cleanValue);
+    
+    // Valida em tempo real se o campo foi tocado
+    if (touched.document) {
+      const error = validateDocument(cleanValue, documentType);
+      setErrors(prev => ({ ...prev, document: error }));
+    }
+  };
+
+  const handleDocumentBlur = () => {
+    setTouched(prev => ({ ...prev, document: true }));
+    
+    // Formata o documento ao sair do campo
+    const cleanDoc = removeNonNumeric(document);
+    if (documentType === 'cpf' && cleanDoc.length === 11) {
+      setDocument(formatCPF(cleanDoc));
+    } else if (documentType === 'cnpj' && cleanDoc.length === 14) {
+      setDocument(formatCNPJ(cleanDoc));
+    }
+    
+    // Valida ao sair do campo
+    const error = validateDocument(document, documentType);
+    setErrors(prev => ({ ...prev, document: error }));
+  };
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    if (touched.name) {
+      if (value.trim().length > 0 && value.trim().length < 3) {
+        setErrors(prev => ({ ...prev, name: 'Nome deve ter pelo menos 3 caracteres' }));
+      } else {
+        setErrors(prev => ({ ...prev, name: undefined }));
+      }
+    }
+  };
+
+  const handleNameBlur = () => {
+    setTouched(prev => ({ ...prev, name: true }));
+    if (name.trim().length > 0 && name.trim().length < 3) {
+      setErrors(prev => ({ ...prev, name: 'Nome deve ter pelo menos 3 caracteres' }));
+    } else {
+      setErrors(prev => ({ ...prev, name: undefined }));
+    }
+  };
+
+  // Validação de telefone
+  const validatePhoneField = (phoneValue: string): string | undefined => {
+    if (!phoneValue) {
+      return undefined; // Telefone é opcional
+    }
+    const cleanPhone = removeNonNumeric(phoneValue);
+    if (cleanPhone.length !== 10 && cleanPhone.length !== 11) {
+      return 'Telefone deve ter 10 ou 11 dígitos (com DDD)';
+    }
+    if (!validatePhone(cleanPhone)) {
+      return 'Telefone inválido';
+    }
+    return undefined;
+  };
+
+  const handlePhoneChange = (value: string) => {
+    // Aplica máscara em tempo real
+    const maskedValue = applyPhoneMask(value);
+    setPhone(maskedValue);
+    
+    // Valida em tempo real se o campo foi tocado
+    if (touched.phone) {
+      const cleanValue = removeNonNumeric(maskedValue);
+      const error = validatePhoneField(cleanValue);
+      setErrors(prev => ({ ...prev, phone: error }));
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    setTouched(prev => ({ ...prev, phone: true }));
+    
+    // Formata o telefone ao sair do campo (garante formatação correta)
+    const cleanPhone = removeNonNumeric(phone);
+    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+      setPhone(formatPhone(cleanPhone));
+    }
+    
+    // Valida ao sair do campo
+    const cleanPhoneForValidation = removeNonNumeric(phone);
+    const error = validatePhoneField(cleanPhoneForValidation);
+    setErrors(prev => ({ ...prev, phone: error }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    // Marca todos os campos como tocados para mostrar erros
+    const fieldsToTouch: typeof touched = { email: true, password: true };
+    if (isSignUp) {
+      fieldsToTouch.name = true;
+      fieldsToTouch.document = true;
+      fieldsToTouch.phone = true;
+    }
+    setTouched(fieldsToTouch);
+    
+    // Valida todos os campos
+    const newErrors: typeof errors = {};
+    
+    const emailError = validateEmail(email);
+    if (emailError) newErrors.email = emailError;
+    
+    const passwordError = validatePassword(password);
+    if (passwordError) newErrors.password = passwordError;
+    
+    if (isSignUp) {
+      if (name.trim().length > 0 && name.trim().length < 3) {
+        newErrors.name = 'Nome deve ter pelo menos 3 caracteres';
+      }
+      
+      const cleanDocument = removeNonNumeric(document);
+      const docError = validateDocument(document, documentType);
+      if (docError) newErrors.document = docError;
+      
+      const phoneError = validatePhoneField(phone);
+      if (phoneError) newErrors.phone = phoneError;
+    }
+    
+    setErrors(newErrors);
+    
+    // Se houver erros, não submete
+    if (Object.values(newErrors).some(err => err !== undefined)) {
+      return;
+    }
+    
     setLoading(true);
 
     try {
       if (isSignUp) {
-        await signup(email, password);
+        const cleanDocument = removeNonNumeric(document);
+        
+        // Chama signup com os dados adicionais
+        const cleanPhone = removeNonNumeric(phone);
+        await signup(email, password, {
+          name: name || undefined,
+          documentType,
+          cpf: documentType === 'cpf' ? cleanDocument : undefined,
+          cnpj: documentType === 'cnpj' ? cleanDocument : undefined,
+          phone: cleanPhone || undefined,
+        });
       } else {
         await login(email, password);
       }
       router.push('/');
-    } catch (err: any) {
-      setError(err.message || 'Erro ao fazer login');
+    } catch (err: unknown) {
+      setError(translateFirebaseError(err));
     } finally {
       setLoading(false);
     }
@@ -44,8 +299,8 @@ export default function LoginPage() {
     try {
       await loginWithGoogle();
       router.push('/');
-    } catch (err: any) {
-      setError(err.message || 'Erro ao fazer login com Google');
+    } catch (err: unknown) {
+      setError(translateFirebaseError(err));
     } finally {
       setLoading(false);
     }
@@ -69,10 +324,133 @@ export default function LoginPage() {
                 type="email"
                 placeholder="seu@email.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                onBlur={handleEmailBlur}
+                className={touched.email && errors.email ? 'border-red-500' : ''}
                 required
               />
+              {touched.email && errors.email && (
+                <p className="text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {errors.email}
+                </p>
+              )}
             </div>
+            
+            {isSignUp && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome Completo</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="Seu nome completo"
+                    value={name}
+                    onChange={(e) => handleNameChange(e.target.value)}
+                    onBlur={handleNameBlur}
+                    className={touched.name && errors.name ? 'border-red-500' : ''}
+                  />
+                  {touched.name && errors.name && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.name}
+                    </p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Tipo de Documento</Label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="documentType"
+                        value="cpf"
+                        checked={documentType === 'cpf'}
+                        onChange={(e) => {
+                          setDocumentType('cpf');
+                          setDocument('');
+                        }}
+                        className="cursor-pointer"
+                      />
+                      <span className="text-sm">CPF</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="documentType"
+                        value="cnpj"
+                        checked={documentType === 'cnpj'}
+                        onChange={(e) => {
+                          setDocumentType('cnpj');
+                          setDocument('');
+                        }}
+                        className="cursor-pointer"
+                      />
+                      <span className="text-sm">CNPJ</span>
+                    </label>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="document">
+                    {documentType === 'cpf' ? 'CPF' : 'CNPJ'}
+                  </Label>
+                  <Input
+                    id="document"
+                    type="text"
+                    placeholder={
+                      documentType === 'cpf' 
+                        ? '000.000.000-00' 
+                        : '00.000.000/0000-00'
+                    }
+                    value={document}
+                    onChange={(e) => handleDocumentChange(e.target.value)}
+                    onBlur={handleDocumentBlur}
+                    maxLength={documentType === 'cpf' ? 14 : 18}
+                    className={touched.document && errors.document ? 'border-red-500' : ''}
+                    required={isSignUp}
+                  />
+                  {touched.document && errors.document && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.document}
+                    </p>
+                  )}
+                  {!errors.document && document && removeNonNumeric(document).length === (documentType === 'cpf' ? 11 : 14) && (
+                    <p className="text-xs text-green-600">
+                      {documentType === 'cpf' ? 'CPF' : 'CNPJ'} válido
+                    </p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Telefone</Label>
+                  <Input
+                    id="phone"
+                    type="text"
+                    placeholder="(00) 00000-0000"
+                    value={phone}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    onBlur={handlePhoneBlur}
+                    maxLength={15}
+                    className={touched.phone && errors.phone ? 'border-red-500' : ''}
+                  />
+                  {touched.phone && errors.phone && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.phone}
+                    </p>
+                  )}
+                  {!errors.phone && phone && (removeNonNumeric(phone).length === 10 || removeNonNumeric(phone).length === 11) && (
+                    <p className="text-xs text-green-600">
+                      Telefone válido
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+            
             <div className="space-y-2">
               <Label htmlFor="password">Senha</Label>
               <Input
@@ -80,9 +458,21 @@ export default function LoginPage() {
                 type="password"
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => handlePasswordChange(e.target.value)}
+                onBlur={handlePasswordBlur}
+                className={touched.password && errors.password ? 'border-red-500' : ''}
                 required
               />
+              {touched.password && errors.password ? (
+                <p className="text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {errors.password}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Mínimo de 6 caracteres
+                </p>
+              )}
             </div>
             {error && (
               <div className="text-sm text-red-500">{error}</div>
@@ -134,7 +524,16 @@ export default function LoginPage() {
           <div className="mt-4 text-center text-sm">
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                // Limpa campos ao alternar entre login e cadastro
+                if (!isSignUp) {
+                  setDocument('');
+                  setName('');
+                  setPhone('');
+                  setDocumentType('cpf');
+                }
+              }}
               className="text-primary hover:underline"
             >
               {isSignUp

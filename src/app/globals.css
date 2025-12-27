@@ -137,3 +137,7 @@
   cursor: pointer;
   user-select: none;
 }
+
+.rdp-month_grid {
+  width: 100% !important;
+}

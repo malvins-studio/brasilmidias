@@ -7,7 +7,8 @@ import {
   doc,
   query,
   where,
-  getDoc
+  getDoc,
+  DocumentReference
 } from 'firebase/firestore';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -26,14 +27,15 @@ const firebaseConfig = {
 
 // Verifica se as variáveis estão configuradas
 if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-  console.error('❌ Erro: Variáveis de ambiente do Firebase não encontradas!');
+  console.error('Erro: Variáveis de ambiente do Firebase não encontradas!');
   console.error('Certifique-se de que o arquivo .env.local existe e está configurado.');
   process.exit(1);
 }
 
 // Inicializa Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Especifica o ID do banco de dados Firestore
+const db = getFirestore(app, 'midiasbrasil');
 
 // IDs das empresas de exemplo (do firebase-examples.json)
 const EXAMPLE_COMPANY_IDS = [
@@ -44,14 +46,14 @@ const EXAMPLE_COMPANY_IDS = [
 
 async function clearCollection(collectionName: string, filterByCompanyIds = false) {
   try {
-    console.log(`\n🗑️  Limpando coleção: ${collectionName}...`);
+    console.log(`\nLimpando coleção: ${collectionName}...`);
 
-    let q = query(collection(db, collectionName));
+    const q = query(collection(db, collectionName));
     
     // Se for a coleção de mídias, filtra apenas as mídias das empresas de exemplo
     if (filterByCompanyIds && collectionName === 'media') {
       // Busca mídias que pertencem às empresas de exemplo
-      const allDocs: any[] = [];
+      const allDocs: { id: string; ref: DocumentReference }[] = [];
       for (const companyId of EXAMPLE_COMPANY_IDS) {
         const companyQuery = query(
           collection(db, collectionName),
@@ -66,25 +68,25 @@ async function clearCollection(collectionName: string, filterByCompanyIds = fals
       // Deleta as mídias encontradas
       for (const docItem of allDocs) {
         await deleteDoc(docItem.ref);
-        console.log(`  ✅ Deletado: ${docItem.id}`);
+        console.log(`Deletado: ${docItem.id}`);
       }
 
-      console.log(`  ✅ ${allDocs.length} documentos deletados da coleção ${collectionName}`);
+      console.log(`${allDocs.length} documentos deletados da coleção ${collectionName}`);
       return allDocs.length;
     } else {
       // Para outras coleções, deleta todos os documentos
       const snapshot = await getDocs(q);
       const deletePromises = snapshot.docs.map(async (docSnapshot) => {
         await deleteDoc(docSnapshot.ref);
-        console.log(`  ✅ Deletado: ${docSnapshot.id}`);
+        console.log(`Deletado: ${docSnapshot.id}`);
       });
 
       await Promise.all(deletePromises);
-      console.log(`  ✅ ${snapshot.docs.length} documentos deletados da coleção ${collectionName}`);
+      console.log(`${snapshot.docs.length} documentos deletados da coleção ${collectionName}`);
       return snapshot.docs.length;
     }
   } catch (error) {
-    console.error(`  ❌ Erro ao limpar ${collectionName}:`, error);
+    console.error(`Erro ao limpar ${collectionName}:`, error);
     return 0;
   }
 }
@@ -94,21 +96,21 @@ async function clearFirebase() {
     // Verifica se deve deletar tudo ou apenas exemplos
     const deleteAll = process.argv.includes('--all');
     
-    console.log('🧹 Iniciando limpeza do Firebase...\n');
+    console.log('Iniciando limpeza do Firebase...\n');
     
     if (deleteAll) {
-      console.log('⚠️  ATENÇÃO: Modo --all ativado! Isso vai deletar TUDO!');
+      console.log('ATENÇÃO: Modo --all ativado! Isso vai deletar TUDO!');
       console.log('   - TODAS as empresas');
       console.log('   - TODAS as mídias');
       console.log('   - TODAS as reservas');
       console.log('   - TODOS os favoritos\n');
     } else {
-      console.log('⚠️  ATENÇÃO: Isso vai deletar os dados de exemplo!');
+      console.log('ATENÇÃO: Isso vai deletar os dados de exemplo!');
       console.log('   - Empresas de exemplo (outdoor-solutions, midia-urbana-sp, publicidade-express)');
       console.log('   - Mídias que pertencem a essas empresas');
       console.log('   - TODAS as reservas');
       console.log('   - TODOS os favoritos');
-      console.log('\n💡 Use --all para deletar TUDO (incluindo empresas não-exemplo)\n');
+      console.log('\nUse --all para deletar TUDO (incluindo empresas não-exemplo)\n');
     }
 
     let totalDeleted = 0;
@@ -129,21 +131,22 @@ async function clearFirebase() {
     
     if (deleteAll) {
       // Deleta TODAS as empresas
-      console.log(`\n🗑️  Limpando TODAS as empresas...`);
+      console.log(`\n Limpando TODAS as empresas...`);
       const allCompaniesSnapshot = await getDocs(collection(db, 'companies'));
       for (const docSnap of allCompaniesSnapshot.docs) {
         try {
           await deleteDoc(docSnap.ref);
-          console.log(`  ✅ Empresa deletada: ${docSnap.id} (${docSnap.data().name || 'sem nome'})`);
+          console.log(`Empresa deletada: ${docSnap.id} (${docSnap.data().name || 'sem nome'})`);
           companiesDeleted++;
           totalDeleted++;
-        } catch (error: any) {
-          console.error(`  ❌ Erro ao deletar empresa ${docSnap.id}:`, error.message || error);
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error(`Erro ao deletar empresa ${docSnap.id}:`, errorMessage);
         }
       }
     } else {
       // Deleta apenas empresas de exemplo
-      console.log(`\n🗑️  Limpando empresas de exemplo...`);
+      console.log(`\n Limpando empresas de exemplo...`);
       for (const companyId of EXAMPLE_COMPANY_IDS) {
         const companyRef = doc(db, 'companies', companyId);
         try {
@@ -151,14 +154,15 @@ async function clearFirebase() {
           const companySnap = await getDoc(companyRef);
           if (companySnap.exists()) {
             await deleteDoc(companyRef);
-            console.log(`  ✅ Empresa deletada: ${companyId}`);
+            console.log(`Empresa deletada: ${companyId}`);
             companiesDeleted++;
             totalDeleted++;
           } else {
-            console.log(`  ℹ️  Empresa não encontrada: ${companyId} (já foi deletada ou não existe)`);
+            console.log(`  Empresa não encontrada: ${companyId} (já foi deletada ou não existe)`);
           }
-        } catch (error: any) {
-          console.error(`  ❌ Erro ao deletar empresa ${companyId}:`, error.message || error);
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error(`Erro ao deletar empresa ${companyId}:`, errorMessage);
           // Continua tentando deletar as outras empresas mesmo se uma falhar
         }
       }
@@ -166,11 +170,11 @@ async function clearFirebase() {
       // Se ainda houver empresas restantes, lista elas
       const allCompaniesSnapshot = await getDocs(collection(db, 'companies'));
       if (allCompaniesSnapshot.size > 0) {
-        console.log(`\n⚠️  Ainda existem ${allCompaniesSnapshot.size} empresa(s) na coleção:`);
+        console.log(`\nAinda existem ${allCompaniesSnapshot.size} empresa(s) na coleção:`);
         allCompaniesSnapshot.forEach((docSnap) => {
           console.log(`   - ${docSnap.id} (${docSnap.data().name || 'sem nome'})`);
         });
-        console.log(`\n💡 Dica: Execute 'pnpm firebase:clear --all' para deletar TODAS as empresas`);
+        console.log(`\nDica: Execute 'pnpm firebase:clear --all' para deletar TODAS as empresas`);
       }
     }
 
@@ -182,23 +186,23 @@ async function clearFirebase() {
     const favoritesCount = await clearCollection('favorites');
     totalDeleted += favoritesCount;
 
-    console.log('\n✅ Limpeza concluída!');
-    console.log(`\n📊 Resumo:`);
-    console.log(`   - Total de documentos deletados: ${totalDeleted}`);
-    console.log(`   - Empresas deletadas: ${companiesDeleted} de ${EXAMPLE_COMPANY_IDS.length}`);
-    console.log(`   - Mídias: ${mediaCount}`);
-    console.log(`   - Reservas: ${reservationsCount}`);
-    console.log(`   - Favoritos: ${favoritesCount}`);
+    console.log('\nLimpeza concluída!');
+    console.log(`\nResumo:`);
+    console.log(`- Total de documentos deletados: ${totalDeleted}`);
+    console.log(`* Empresas deletadas: ${companiesDeleted} de ${EXAMPLE_COMPANY_IDS.length}`);
+    console.log(`* Mídias: ${mediaCount}`);
+    console.log(`* Reservas: ${reservationsCount}`);
+    console.log(`* Favoritos: ${favoritesCount}`);
 
   } catch (error) {
-    console.error('❌ Erro ao limpar Firebase:', error);
+    console.error('Erro ao limpar Firebase:', error);
     process.exit(1);
   }
 }
 
 // Executa a limpeza
 clearFirebase().then(() => {
-  console.log('\n✨ Processo finalizado!');
+  console.log('\nProcesso finalizado!');
   process.exit(0);
 });
 

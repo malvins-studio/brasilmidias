@@ -11,6 +11,10 @@ MVP de uma plataforma de locação de mídias outdoor, similar ao Airbnb.
 - ✅ Página de detalhes da mídia com galeria de imagens
 - ✅ Cálculo dinâmico de preço baseado em dias selecionados
 - ✅ Indicadores visuais para mídias reservadas
+- ✅ **Integração com Stripe para pagamentos**
+- ✅ **Dashboard do usuário para gerenciar reservas**
+- ✅ **Sistema de split de pagamento (plataforma + owner)**
+- ✅ **Pagamento bloqueado até o final do período de aluguel**
 
 ## Tecnologias
 
@@ -18,6 +22,7 @@ MVP de uma plataforma de locação de mídias outdoor, similar ao Airbnb.
 - React 19
 - TypeScript
 - Firebase (Auth, Firestore, Storage)
+- Stripe (Pagamentos)
 - Tailwind CSS
 - shadcn/ui
 
@@ -28,16 +33,24 @@ MVP de uma plataforma de locação de mídias outdoor, similar ao Airbnb.
 pnpm install
 ```
 
-2. Configure as variáveis de ambiente do Firebase. Crie um arquivo `.env.local` na raiz do projeto:
+2. Configure as variáveis de ambiente. Crie um arquivo `.env.local` na raiz do projeto:
 
 ```env
+# Firebase
 NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
 ```
+
+Veja mais detalhes sobre a configuração do Stripe em [docs/STRIPE_SETUP.md](docs/STRIPE_SETUP.md)
 
 3. Configure o Firebase:
    - Crie um projeto no Firebase Console
@@ -90,8 +103,14 @@ pnpm dev
   startDate: Timestamp
   endDate: Timestamp
   totalPrice: number
-  status: 'pending' | 'confirmed' | 'cancelled'
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
   createdAt: Timestamp
+  // Informações de pagamento
+  paymentIntentId?: string
+  paymentStatus?: 'pending' | 'paid' | 'held' | 'released' | 'refunded'
+  platformFee?: number // Taxa da plataforma
+  ownerAmount?: number // Valor que será pago ao owner
+  paymentReleasedAt?: Timestamp // Data em que o pagamento foi liberado
 }
 ```
 
@@ -117,6 +136,13 @@ pnpm dev
 - `/` - Página inicial com listagem de mídias
 - `/login` - Página de login/cadastro
 - `/midia/[id]` - Página de detalhes da mídia
+- `/dashboard` - Dashboard do usuário com suas reservas
+
+## API Routes
+
+- `/api/stripe/checkout` - Cria sessão de checkout do Stripe
+- `/api/stripe/webhook` - Webhook do Stripe para processar eventos de pagamento
+- `/api/stripe/release-payment` - Libera pagamento bloqueado ao final do aluguel
 
 ## Scripts
 
