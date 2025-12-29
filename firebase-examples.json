@@ -24,7 +24,7 @@
       "mediaType": "Outdoor",
       "traffic": 85000,
       "trafficUnit": "veículos/dia",
-      "pricePerDay": 1200.00,
+      "price": 1200.00,
       "images": [
         "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800",
         "https://images.unsplash.com/photo-1514565131-fce0801e5785?w=800",

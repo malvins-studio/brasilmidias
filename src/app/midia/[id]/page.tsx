@@ -12,7 +12,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
 import { useReservas } from '@/hooks/useReservas';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useAuth } from '@/hooks/useAuth';
 import { Media } from '@/types';
 import { calculatePrice, formatCurrency } from '@/lib/utils';
@@ -31,8 +33,11 @@ export default function MediaDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
-  // Estado para o tipo de preço selecionado pelo usuário (dia/semana/mês)
-  const [selectedPriceType, setSelectedPriceType] = useState<'day' | 'week' | 'month'>('day');
+  // O usuário pode escolher entre bi-semanal ou mensal (sempre começa com bi-semanal)
+  const [selectedPriceType, setSelectedPriceType] = useState<'biweek' | 'month'>('biweek');
+  // Datas indisponíveis (reservadas)
+  const [unavailableDates, setUnavailableDates] = useState<Date[]>([]);
+  const [nextAvailableDate, setNextAvailableDate] = useState<Date | null>(null);
 
   useEffect(() => {
     const fetchMedia = async () => {
@@ -41,10 +46,14 @@ export default function MediaDetailPage() {
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
-          setMedia({
+          const mediaData = {
             id: docSnap.id,
             ...docSnap.data(),
-          } as Media);
+          } as Media;
+          setMedia(mediaData);
+          
+          // Busca reservas confirmadas para calcular datas indisponíveis
+          await fetchUnavailableDates(mediaData.id);
         } else {
           setError('Mídia não encontrada');
         }
@@ -58,6 +67,57 @@ export default function MediaDetailPage() {
 
     fetchMedia();
   }, [params.id]);
+
+  /**
+   * Busca reservas confirmadas e calcula datas indisponíveis
+   */
+  const fetchUnavailableDates = async (mediaId: string) => {
+    try {
+      const q = query(
+        collection(db, 'reservations'),
+        where('mediaId', '==', mediaId),
+        where('status', '==', 'confirmed')
+      );
+
+      const querySnapshot = await getDocs(q);
+      const unavailable: Date[] = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      querySnapshot.forEach((docSnap) => {
+        const reservation = docSnap.data();
+        if (reservation.startDate && reservation.endDate) {
+          const start = reservation.startDate.toDate();
+          const end = reservation.endDate.toDate();
+          
+          // Adiciona todos os dias do período reservado
+          const currentDate = new Date(start);
+          while (currentDate <= end) {
+            const dateCopy = new Date(currentDate);
+            dateCopy.setHours(0, 0, 0, 0);
+            unavailable.push(dateCopy);
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+        }
+      });
+
+      setUnavailableDates(unavailable);
+
+      // Calcula próxima data disponível
+      if (unavailable.length > 0) {
+        const sortedUnavailable = [...unavailable].sort((a, b) => a.getTime() - b.getTime());
+        const lastUnavailable = sortedUnavailable[sortedUnavailable.length - 1];
+        const nextAvailable = new Date(lastUnavailable);
+        nextAvailable.setDate(nextAvailable.getDate() + 1);
+        setNextAvailableDate(nextAvailable);
+      } else {
+        // Se não há reservas, próxima data disponível é hoje
+        setNextAvailableDate(today);
+      }
+    } catch (err) {
+      console.error('Error fetching unavailable dates:', err);
+    }
+  };
 
   useEffect(() => {
     // Reset quando não há datas selecionadas
@@ -89,14 +149,12 @@ export default function MediaDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange?.from?.getTime(), dateRange?.to?.getTime(), media?.id]);
 
-  // Inicializa o tipo de preço selecionado com o padrão da mídia
+  // Reseta o dateRange quando a mídia muda
   useEffect(() => {
-    if (media?.priceType) {
-      setSelectedPriceType(media.priceType);
-      // Reseta o dateRange quando o tipo de preço muda
+    if (media) {
       setDateRange(undefined);
     }
-  }, [media?.priceType]);
+  }, [media?.id]);
 
   const handleReserve = async () => {
     if (!user) {
@@ -113,13 +171,15 @@ export default function MediaDetailPage() {
       setError(null);
       setSuccess(false);
       setProcessingPayment(true);
+      // Para mensal, o preço é 2x o preço bi-semanal (1 mês = 2 bi-semanas)
       const totalPrice = calculatePrice(
-        media.pricePerDay,
+        media.price, // Preço bi-semanal
         dateRange.from,
         dateRange.to,
         selectedPriceType,
         media.pricePerWeek,
-        media.pricePerMonth
+        media.pricePerBiweek || media.price, // Usa o preço base se pricePerBiweek não existir
+        selectedPriceType === 'month' ? media.price * 2 : media.pricePerMonth // Mensal = 2x bi-semanal
       );
 
       // Cria a sessão de checkout no Stripe
@@ -158,11 +218,6 @@ export default function MediaDetailPage() {
     }
   };
 
-  const handlePriceTypeChange = (priceType: 'day' | 'week' | 'month') => {
-    setSelectedPriceType(priceType);
-    // Reseta o dateRange quando o tipo de preço muda para recalcular o preço
-    setDateRange(undefined);
-  };
 
   if (loading) {
     return (
@@ -191,14 +246,16 @@ export default function MediaDetailPage() {
 
   if (!media) return null;
 
+  // Para mensal, o preço é 2x o preço bi-semanal (1 mês = 2 bi-semanas)
   const totalPrice = dateRange?.from && dateRange?.to
     ? calculatePrice(
-        media.pricePerDay,
+        media.price, // Preço bi-semanal
         dateRange.from,
         dateRange.to,
         selectedPriceType,
         media.pricePerWeek,
-        media.pricePerMonth
+        media.pricePerBiweek || media.price, // Usa o preço base se pricePerBiweek não existir
+        selectedPriceType === 'month' ? media.price * 2 : media.pricePerMonth // Mensal = 2x bi-semanal
       )
     : 0;
 
@@ -268,85 +325,76 @@ export default function MediaDetailPage() {
                 <div>
                   {/* Seleção do tipo de preço */}
                   <div className="mb-4">
-                    <label className="text-sm font-medium mb-2 block">Selecione o período:</label>
-                    <div className="flex gap-2">
-                      <button
+                    <Label className="mb-2 block">Escolha o período:</Label>
+                    <div className="flex gap-2 mb-4">
+                      <Button
                         type="button"
-                        onClick={() => handlePriceTypeChange('day')}
-                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                          selectedPriceType === 'day'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
+                        variant={selectedPriceType === 'biweek' ? 'default' : 'outline'}
+                        onClick={() => {
+                          setSelectedPriceType('biweek');
+                          setDateRange(undefined); // Reseta a seleção ao mudar o tipo
+                        }}
+                        className="flex-1"
                       >
-                        Por Dia
-                        {media.pricePerDay && (
-                          <span className="block text-xs mt-1 opacity-90">
-                            {formatCurrency(media.pricePerDay)}
-                          </span>
-                        )}
-                      </button>
-                      {media.pricePerWeek && (
-                        <button
-                          type="button"
-                          onClick={() => handlePriceTypeChange('week')}
-                          className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                            selectedPriceType === 'week'
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          Por Semana
-                          <span className="block text-xs mt-1 opacity-90">
-                            {formatCurrency(media.pricePerWeek)}
-                          </span>
-                        </button>
-                      )}
-                      {media.pricePerMonth && (
-                        <button
-                          type="button"
-                          onClick={() => handlePriceTypeChange('month')}
-                          className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                            selectedPriceType === 'month'
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          Por Mês
-                          <span className="block text-xs mt-1 opacity-90">
-                            {formatCurrency(media.pricePerMonth)}
-                          </span>
-                        </button>
-                      )}
+                        Bi-semanal
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={selectedPriceType === 'month' ? 'default' : 'outline'}
+                        onClick={() => {
+                          setSelectedPriceType('month');
+                          setDateRange(undefined); // Reseta a seleção ao mudar o tipo
+                        }}
+                        className="flex-1"
+                      >
+                        Mensal
+                      </Button>
                     </div>
                   </div>
 
-                  {/* Exibição do preço selecionado */}
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <span className="text-2xl font-bold">
-                      {selectedPriceType === 'day' && formatCurrency(media.pricePerDay)}
-                      {selectedPriceType === 'week' && media.pricePerWeek && formatCurrency(media.pricePerWeek)}
-                      {selectedPriceType === 'month' && media.pricePerMonth && formatCurrency(media.pricePerMonth)}
-                    </span>
-                    <span className="text-muted-foreground">
-                      / {selectedPriceType === 'day' ? 'dia' : selectedPriceType === 'week' ? 'semana' : 'mês'}
-                    </span>
-                  </div>
-                  {totalPrice > 0 && (
-                    <div className="mt-4">
-                      <p className="text-sm text-muted-foreground mb-1">Preço total</p>
-                      <p className="text-3xl font-bold">{formatCurrency(totalPrice)}</p>
+                  {/* Exibição do preço baseado na escolha do usuário */}
+                  <div className="mb-4">
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span className="text-2xl font-bold">
+                        {selectedPriceType === 'biweek'
+                          ? formatCurrency(media.price)
+                          : formatCurrency(media.price * 2)} {/* Mensal = 2x bi-semanal */}
+                      </span>
+                      <span className="text-muted-foreground">
+                        / {selectedPriceType === 'biweek' ? 'bi-semana' : 'mês'}
+                      </span>
                     </div>
-                  )}
+                    {totalPrice > 0 && (
+                      <div className="mt-4">
+                        <p className="text-sm text-muted-foreground mb-1">Preço total</p>
+                        <p className="text-3xl font-bold">{formatCurrency(totalPrice)}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <Separator />
 
                 <div className="space-y-4">
+                  {/* Próxima data disponível */}
+                  {nextAvailableDate && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        <strong>Disponível a partir de:</strong>{' '}
+                        {nextAvailableDate.toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  )}
+
                   <DateRangePicker
                     dateRange={dateRange}
                     onDateRangeChange={setDateRange}
                     priceType={selectedPriceType}
+                    disabledDates={unavailableDates}
                   />
 
                   {checkingAvailability && (

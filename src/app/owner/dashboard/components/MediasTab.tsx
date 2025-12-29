@@ -70,7 +70,7 @@ export function MediasTab({ midias, loading, onDeleteMedia }: MediasTabProps) {
                         {media.city}, {media.state}
                       </div>
                       <div>
-                        <span className="font-medium">{formatCurrency(media.pricePerDay)}</span>
+                        <span className="font-medium">{formatCurrency(media.price)}</span>
                         <span className="text-muted-foreground"> / dia</span>
                       </div>
                       {media.deleted && (

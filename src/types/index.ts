@@ -24,10 +24,11 @@ export interface Media {
   traffic: number;
   trafficUnit: string;
   // Preços por período
-  pricePerDay: number; // Preço por dia (obrigatório)
+  price: number; // Preço base (obrigatório) - a unidade é definida por priceType
   pricePerWeek?: number; // Preço por semana (opcional)
+  pricePerBiweek?: number; // Preço por bi-semana (opcional)
   pricePerMonth?: number; // Preço por mês (opcional)
-  priceType: 'day' | 'week' | 'month'; // Tipo de preço padrão para exibição e cálculo
+  priceType: 'day' | 'week' | 'biweek' | 'month'; // Tipo de preço padrão para exibição e cálculo
   images: string[];
   coordinates: Coordinates;
   address: Address;

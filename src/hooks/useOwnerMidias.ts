@@ -18,6 +18,32 @@ import { useUserRole } from './useUserRole';
 import { Media } from '@/types';
 
 /**
+ * Remove campos undefined de um objeto (recursivamente)
+ * Firestore não aceita undefined, então precisamos removê-los antes de salvar
+ */
+function removeUndefinedFields(obj: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+  
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) {
+      // Pula campos undefined
+      continue;
+    } else if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date) && !(value instanceof Timestamp)) {
+      // Recursivamente limpa objetos aninhados
+      const cleanedNested = removeUndefinedFields(value as Record<string, unknown>);
+      // Só adiciona se o objeto aninhado não estiver vazio
+      if (Object.keys(cleanedNested).length > 0) {
+        cleaned[key] = cleanedNested;
+      }
+    } else {
+      cleaned[key] = value;
+    }
+  }
+  
+  return cleaned;
+}
+
+/**
  * Hook para gerenciar mídias do owner
  * Permite criar, editar, deletar (exclusão lógica) e listar mídias do owner
  */
@@ -125,7 +151,10 @@ export function useOwnerMidias() {
         updatedAt: Timestamp.now(),
       };
 
-      const docRef = await addDoc(collection(db, 'media'), newMedia);
+      // Remove campos undefined (Firestore não aceita undefined)
+      const cleanMedia = removeUndefinedFields(newMedia as Record<string, unknown>);
+
+      const docRef = await addDoc(collection(db, 'media'), cleanMedia);
 
       // Atualiza o role do usuário para 'owner' se ainda não for
       // Verifica se o usuário já é owner antes de atualizar
@@ -166,13 +195,13 @@ export function useOwnerMidias() {
 
   /**
    * Atualiza uma mídia existente
-   * Não permite alterar o preço (pricePerDay)
+   * Não permite alterar o preço (price)
    * @param mediaId ID da mídia
-   * @param updates Campos a serem atualizados (sem pricePerDay)
+   * @param updates Campos a serem atualizados (sem price)
    */
   const updateMedia = async (
     mediaId: string,
-    updates: Partial<Omit<Media, 'id' | 'pricePerDay' | 'createdAt' | 'ownerId'>>
+    updates: Partial<Omit<Media, 'id' | 'price' | 'createdAt' | 'ownerId'>>
   ) => {
     if (!user) {
       throw new Error('Usuário não autenticado');
@@ -208,18 +237,21 @@ export function useOwnerMidias() {
       }
 
       // Remove campos que não podem ser alterados:
-      // - pricePerDay: não pode ser alterado
+      // - price: não pode ser alterado
       // - companyId: não pode ser alterado (a mídia pertence à company)
       // - ownerId: não pode ser alterado (histórico de quem criou)
       const safeUpdates = { ...updates };
       // Remove campos protegidos se existirem
-      delete (safeUpdates as Record<string, unknown>).pricePerDay;
+      delete (safeUpdates as Record<string, unknown>).price;
       delete (safeUpdates as Record<string, unknown>).companyId;
       delete (safeUpdates as Record<string, unknown>).ownerId;
       
+      // Remove campos undefined (Firestore não aceita undefined)
+      const cleanUpdates = removeUndefinedFields(safeUpdates);
+      
       // Adiciona timestamp de atualização
       await updateDoc(mediaRef, {
-        ...safeUpdates,
+        ...cleanUpdates,
         updatedAt: Timestamp.now(),
       });
 

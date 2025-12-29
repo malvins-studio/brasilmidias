@@ -88,7 +88,7 @@ interface Media {
   mediaType: string;
   traffic: number;
   trafficUnit: string;
-  pricePerDay: number;
+  price: number;
   images: string[];
   coordinates: {
     lat: number;
@@ -185,7 +185,7 @@ async function seedFirebase() {
           mediaType: mediaItem.mediaType,
           traffic: mediaItem.traffic,
           trafficUnit: mediaItem.trafficUnit,
-          pricePerDay: mediaItem.pricePerDay,
+          price: mediaItem.price,
           images: mediaItem.images,
           coordinates: mediaItem.coordinates,
           address: mediaItem.address,

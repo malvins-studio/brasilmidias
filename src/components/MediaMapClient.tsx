@@ -98,7 +98,7 @@ function PriceMarker({
     style: 'currency',
     currency: 'BRL',
     maximumFractionDigits: 0,
-  }).format(media.pricePerDay);
+  }).format(media.price);
 
   // Sempre mostra o preço, mas aumenta e muda cor quando hover/selected
   const scale = isHovered || isSelected ? 1.2 : 1;
@@ -206,10 +206,25 @@ function MapClickHandler({ onMapClick }: { onMapClick?: () => void }) {
 }
 
 export function MediaMapClient({ midias, selectedMediaId, hoveredMediaId, onMarkerClick, onMarkerHover, onBoundsChange, onMapClick }: MediaMapClientProps) {
+  // Coordenadas do centro do Brasil (aproximadamente)
+  const brazilCenter: [number, number] = [-14.2350, -51.9253];
+  
+  // Se não houver mídias, mostra o Brasil centralizado
   if (midias.length === 0) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-gray-100 rounded-lg">
-        <p className="text-muted-foreground">Nenhuma mídia para exibir no mapa</p>
+      <div className="h-full w-full rounded-lg overflow-hidden border">
+        <MapContainer
+          center={brazilCenter}
+          zoom={4}
+          style={{ height: '100%', width: '100%' }}
+          className="z-0"
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <MapClickHandler onMapClick={onMapClick} />
+        </MapContainer>
       </div>
     );
   }
