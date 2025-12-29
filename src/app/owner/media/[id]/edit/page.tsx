@@ -21,9 +21,22 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useOwnerMidias } from '@/hooks/useOwnerMidias';
 import { Media, Address, Coordinates } from '@/types';
 import { ImageManager } from '@/components/ImageManager';
-import CoordinatePicker from '@/components/CoordinatePicker';
+import dynamic from 'next/dynamic';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
+
+// Importa dinamicamente para evitar problemas de SSR
+const CoordinatePicker = dynamic(
+  () => import('@/components/CoordinatePicker'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full rounded-lg border bg-gray-100 flex items-center justify-center" style={{ height: '400px' }}>
+        <p className="text-muted-foreground">Carregando mapa...</p>
+      </div>
+    ),
+  }
+);
 
 export default function EditMediaPage() {
   const { user, loading: authLoading } = useAuth();

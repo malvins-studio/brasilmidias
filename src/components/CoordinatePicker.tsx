@@ -1,20 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-
-// Fix para ícones do Leaflet no Next.js
-if (typeof window !== 'undefined') {
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  });
-}
 
 interface CoordinatePickerProps {
   lat: number | null;
@@ -23,47 +10,24 @@ interface CoordinatePickerProps {
   height?: string;
 }
 
-// Componente para atualizar o centro do mapa quando as coordenadas mudam
-function MapCenterUpdater({ lat, lng }: { lat: number | null; lng: number | null }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (lat !== null && lng !== null) {
-      const currentCenter = map.getCenter();
-      const currentZoom = map.getZoom();
-      // Só atualiza se as coordenadas mudaram significativamente (mais de 0.001 graus)
-      if (
-        Math.abs(currentCenter.lat - lat) > 0.001 ||
-        Math.abs(currentCenter.lng - lng) > 0.001
-      ) {
-        map.setView([lat, lng], currentZoom > 10 ? currentZoom : 13, { animate: true });
-      }
-    }
-  }, [lat, lng, map]);
-
-  return null;
-}
-
-// Componente para capturar cliques no mapa
-function MapClickHandler({ onCoordinateChange }: { onCoordinateChange: (lat: number, lng: number) => void }) {
-  const map = useMap();
-
-  useEffect(() => {
-    const handleMapClick = (e: L.LeafletMouseEvent) => {
-      const { lat, lng } = e.latlng;
-      onCoordinateChange(lat, lng);
-    };
-
-    map.on('click', handleMapClick);
-    return () => {
-      map.off('click', handleMapClick);
-    };
-  }, [map, onCoordinateChange]);
-
-  return null;
-}
-
 function CoordinatePickerClient({ lat, lng, onCoordinateChange, height = '400px' }: CoordinatePickerProps) {
+  // Importa Leaflet apenas no cliente
+  useEffect(() => {
+    // Fix para ícones do Leaflet no Next.js
+    if (typeof window !== 'undefined') {
+      import('leaflet').then((L) => {
+        const IconDefault = L.default.Icon.Default;
+        // Remove propriedade privada do Leaflet para funcionar no Next.js
+        delete (IconDefault.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
+        IconDefault.mergeOptions({
+          iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+          iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        });
+      });
+    }
+  }, []);
+
   // Coordenadas do centro do Brasil
   const brazilCenter: [number, number] = [-14.2350, -51.9253];
   
@@ -72,6 +36,87 @@ function CoordinatePickerClient({ lat, lng, onCoordinateChange, height = '400px'
     lat !== null && lng !== null ? [lat, lng] : brazilCenter;
   
   const initialZoom = lat !== null && lng !== null ? 13 : 4;
+
+  // Importa react-leaflet dinamicamente
+  // Tipos dinâmicos do react-leaflet (importados em runtime)
+  const [MapComponents, setMapComponents] = useState<{
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    MapContainer: React.ComponentType<any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    TileLayer: React.ComponentType<any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Marker: React.ComponentType<any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    useMap: () => any;
+  } | null>(null);
+
+  // Usa refs para evitar warnings de dependências
+  const latRef = useRef(lat);
+  const lngRef = useRef(lng);
+  const onCoordinateChangeRef = useRef(onCoordinateChange);
+
+  useEffect(() => {
+    latRef.current = lat;
+    lngRef.current = lng;
+    onCoordinateChangeRef.current = onCoordinateChange;
+  }, [lat, lng, onCoordinateChange]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('react-leaflet').then((mod) => {
+        setMapComponents({
+          MapContainer: mod.MapContainer,
+          TileLayer: mod.TileLayer,
+          Marker: mod.Marker,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          useMap: mod.useMap as any,
+        });
+      });
+    }
+  }, []);
+
+  if (!MapComponents) {
+    return (
+      <div className="w-full rounded-lg border bg-gray-100 flex items-center justify-center" style={{ height }}>
+        <p className="text-muted-foreground">Carregando mapa...</p>
+      </div>
+    );
+  }
+
+  const { MapContainer, TileLayer, Marker, useMap } = MapComponents;
+
+  // Componentes internos que precisam de useMap
+  const MapCenterUpdaterWithHook = () => {
+    const map = useMap();
+    useEffect(() => {
+      if (latRef.current !== null && lngRef.current !== null) {
+        const currentCenter = map.getCenter();
+        const currentZoom = map.getZoom();
+        if (
+          Math.abs(currentCenter.lat - latRef.current) > 0.001 ||
+          Math.abs(currentCenter.lng - lngRef.current) > 0.001
+        ) {
+          map.setView([latRef.current, lngRef.current], currentZoom > 10 ? currentZoom : 13, { animate: true });
+        }
+      }
+    }, [map]);
+    return null;
+  };
+
+  const MapClickHandlerWithHook = () => {
+    const map = useMap();
+    useEffect(() => {
+      const handleMapClick = (e: { latlng: { lat: number; lng: number } }) => {
+        const { lat, lng } = e.latlng;
+        onCoordinateChangeRef.current(lat, lng);
+      };
+      map.on('click', handleMapClick);
+      return () => {
+        map.off('click', handleMapClick);
+      };
+    }, [map]);
+    return null;
+  };
 
   return (
     <div className="w-full rounded-lg overflow-hidden border" style={{ height }}>
@@ -85,8 +130,8 @@ function CoordinatePickerClient({ lat, lng, onCoordinateChange, height = '400px'
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MapClickHandler onCoordinateChange={onCoordinateChange} />
-        <MapCenterUpdater lat={lat} lng={lng} />
+        <MapClickHandlerWithHook />
+        <MapCenterUpdaterWithHook />
         {lat !== null && lng !== null && (
           <Marker position={[lat, lng]} />
         )}
