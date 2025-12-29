@@ -35,7 +35,7 @@ function OwnerDashboardContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { userRole } = useUserRole(); // Para pegar o companyId
+  const { userRole, loading: roleLoading } = useUserRole(); // Para pegar o companyId
   const { midias, loading: midiasLoading, deleteMedia } = useOwnerMidias();
 
   // Estado para reservas (inclui dados do cliente que alugou)
@@ -52,48 +52,64 @@ function OwnerDashboardContent() {
   });
 
   /**
-   * Verifica autenticação e redireciona se necessário
-   * Também verifica se o usuário tem companyId antes de buscar dados
-   * Também verifica query params do Stripe Connect (retorno do onboarding)
+   * Verifica query params do Stripe Connect (retorno do onboarding)
+   * Separado para evitar loops infinitos
    */
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-      return;
-    }
+    const stripeSuccess = searchParams.get('stripe_success');
+    const stripeRefresh = searchParams.get('stripe_refresh');
 
-    // Verifica se retornou do Stripe onboarding
-    if (searchParams.get('stripe_success') === 'true') {
+    if (stripeSuccess === 'true') {
       // Remove o query param da URL
       router.replace('/owner/dashboard');
       // Recarrega o status do Stripe após um pequeno delay
       setTimeout(() => {
         window.location.reload();
       }, 500);
-    } else if (searchParams.get('stripe_refresh') === 'true') {
+    } else if (stripeRefresh === 'true') {
       // Remove o query param da URL
       router.replace('/owner/dashboard');
+    }
+  }, [searchParams, router]);
+
+  /**
+   * Verifica autenticação e redireciona se necessário
+   * Também verifica se o usuário tem companyId antes de buscar dados
+   */
+  useEffect(() => {
+    if (authLoading || roleLoading) {
+      // Ainda carregando autenticação ou role, aguarda
+      return;
+    }
+
+    if (!user) {
+      router.push('/login');
+      setLoadingReservations(false);
+      return;
     }
 
     // Só busca dados se o usuário tiver companyId
     // As mídias são atreladas à company, não ao usuário diretamente
-    if (user && userRole?.companyId) {
+    if (userRole?.companyId) {
       fetchReservations();
-    } else if (user && userRole && !userRole.companyId) {
-      // Usuário logado mas sem company - limpa dados
+    } else {
+      // Usuário logado mas sem company ou userRole não carregado - limpa dados
       setReservations([]);
       calculateStats([]);
       setLoadingReservations(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, userRole?.companyId, authLoading, searchParams, router]);
+  }, [user, userRole?.companyId, authLoading, roleLoading]);
 
   /**
    * Busca todas as reservas das mídias do owner
    * Inclui informações da mídia para exibição
    */
   const fetchReservations = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoadingReservations(false);
+      return;
+    }
 
     try {
       setLoadingReservations(true);
@@ -103,6 +119,7 @@ function OwnerDashboardContent() {
       if (!userRole?.companyId) {
         setReservations([]);
         calculateStats([]);
+        setLoadingReservations(false);
         return;
       }
 
@@ -190,6 +207,9 @@ function OwnerDashboardContent() {
       calculateStats(allReservations);
     } catch (error) {
       console.error('Error fetching reservations:', error);
+      // Em caso de erro, ainda define loading como false para não travar a página
+      setReservations([]);
+      calculateStats([]);
     } finally {
       setLoadingReservations(false);
     }
@@ -265,7 +285,7 @@ function OwnerDashboardContent() {
   };
 
 
-  if (authLoading || loadingReservations) {
+  if (authLoading || roleLoading || loadingReservations) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
