@@ -124,7 +124,12 @@ export function StripeConnectCard() {
       }
 
       // Abre o dashboard do Stripe em nova aba
-      window.open(data.url, '_blank');
+      // Usa window.open sem verificar window.closed para evitar problemas de COOP
+      const stripeWindow = window.open(data.url, '_blank', 'noopener,noreferrer');
+      if (!stripeWindow) {
+        // Se o popup foi bloqueado, redireciona na mesma aba
+        window.location.href = data.url;
+      }
     } catch (error) {
       console.error('Error creating login link:', error);
       alert('Erro ao criar link de login');

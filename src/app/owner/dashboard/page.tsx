@@ -9,8 +9,8 @@
  * - Gerenciar suas mídias (criar, editar, deletar)
  */
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Header } from '@/components/Header';
@@ -31,9 +31,10 @@ import { ReservationsTab } from './components/ReservationsTab';
 import { MediasTab } from './components/MediasTab';
 import { StripeConnectCard } from './components/StripeConnectCard';
 
-export default function OwnerDashboardPage() {
+function OwnerDashboardContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { userRole } = useUserRole(); // Para pegar o companyId
   const { midias, loading: midiasLoading, deleteMedia } = useOwnerMidias();
 
@@ -53,11 +54,25 @@ export default function OwnerDashboardPage() {
   /**
    * Verifica autenticação e redireciona se necessário
    * Também verifica se o usuário tem companyId antes de buscar dados
+   * Também verifica query params do Stripe Connect (retorno do onboarding)
    */
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
       return;
+    }
+
+    // Verifica se retornou do Stripe onboarding
+    if (searchParams.get('stripe_success') === 'true') {
+      // Remove o query param da URL
+      router.replace('/owner/dashboard');
+      // Recarrega o status do Stripe após um pequeno delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } else if (searchParams.get('stripe_refresh') === 'true') {
+      // Remove o query param da URL
+      router.replace('/owner/dashboard');
     }
 
     // Só busca dados se o usuário tiver companyId
@@ -71,7 +86,7 @@ export default function OwnerDashboardPage() {
       setLoadingReservations(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, userRole?.companyId, authLoading]);
+  }, [user, userRole?.companyId, authLoading, searchParams, router]);
 
   /**
    * Busca todas as reservas das mídias do owner
@@ -379,6 +394,21 @@ export default function OwnerDashboardPage() {
         </Tabs>
       </main>
     </div>
+  );
+}
+
+export default function OwnerDashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container mx-auto px-4 py-12 text-center">
+          Carregando...
+        </div>
+      </div>
+    }>
+      <OwnerDashboardContent />
+    </Suspense>
   );
 }
 
