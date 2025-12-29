@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -29,6 +30,25 @@ export function DateRangePicker({
   disabledDates = [],
   availableDates,
 }: DateRangePickerProps) {
+  // Estado para controlar o mês exibido no calendário (para modo mensal)
+  const [currentMonth, setCurrentMonth] = useState<Date | undefined>(
+    dateRange?.from || new Date()
+  );
+
+  // Atualiza currentMonth quando dateRange muda (usando setTimeout para evitar warning)
+  useEffect(() => {
+    if (priceType === "month") {
+      const timer = setTimeout(() => {
+        if (dateRange?.from) {
+          setCurrentMonth(dateRange.from);
+        } else {
+          setCurrentMonth(new Date());
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [dateRange?.from, priceType]);
+
   /**
    * Handler para quando o usuário seleciona uma data
    * Ajusta automaticamente o período baseado no tipo de preço
@@ -52,13 +72,13 @@ export function DateRangePicker({
         const currentEnd = new Date(dateRange.to);
         currentEnd.setHours(23, 59, 59, 999);
 
-        // Calcula quantas bi-semanas já estão selecionadas
-        const daysDiff =
-          Math.ceil(
-            (currentEnd.getTime() - currentStart.getTime()) /
-              (1000 * 60 * 60 * 24)
-          ) + 1;
-        const currentBiweeks = Math.floor(daysDiff / 14);
+        // Calcula quantas bi-semanas já estão selecionadas (para referência futura)
+        // const daysDiff =
+        //   Math.ceil(
+        //     (currentEnd.getTime() - currentStart.getTime()) /
+        //       (1000 * 60 * 60 * 24)
+        //   ) + 1;
+        // const currentBiweeks = Math.floor(daysDiff / 14);
 
         // Verifica se o dia clicado está antes ou depois da seleção atual
         const daysBefore = Math.floor(
@@ -196,10 +216,40 @@ export function DateRangePicker({
       return;
     }
 
-    // Para month, sempre usa handleMonthYearSelect
+    // Para month, quando clica em qualquer dia, seleciona o mês completo
     if (priceType === "month") {
       if (range.from) {
-        handleMonthYearSelect(range.from);
+        // Pega o primeiro dia do mês clicado
+        const clickedDate = new Date(range.from);
+        const firstDayOfMonth = new Date(clickedDate.getFullYear(), clickedDate.getMonth(), 1);
+        firstDayOfMonth.setHours(0, 0, 0, 0);
+        
+        // Pega o último dia do mês clicado
+        const lastDayOfMonth = new Date(clickedDate.getFullYear(), clickedDate.getMonth() + 1, 0);
+        lastDayOfMonth.setHours(23, 59, 59, 999);
+        
+        // Se já existe uma seleção
+        if (dateRange?.from && dateRange?.to) {
+          const currentStart = new Date(dateRange.from);
+          currentStart.setHours(0, 0, 0, 0);
+          const currentEnd = new Date(dateRange.to);
+          currentEnd.setHours(23, 59, 59, 999);
+          
+          const currentStartMonth = new Date(currentStart.getFullYear(), currentStart.getMonth(), 1);
+          
+          // Se clicou no mês inicial, limpa a seleção
+          if (firstDayOfMonth.getTime() === currentStartMonth.getTime()) {
+            onDateRangeChange(undefined);
+            return;
+          }
+          
+          // Se clicou em um mês diferente (mesmo que seja consecutivo), inicia nova seleção a partir daquele mês
+          // A quantidade será ajustada automaticamente pela página
+          onDateRangeChange({ from: firstDayOfMonth, to: lastDayOfMonth });
+        } else {
+          // Primeira seleção: seleciona apenas o mês clicado
+          onDateRangeChange({ from: firstDayOfMonth, to: lastDayOfMonth });
+        }
       }
       return;
     }
@@ -231,107 +281,6 @@ export function DateRangePicker({
     onDateRangeChange(range);
   };
 
-  /**
-   * Handler para seleção de mês/ano (quando priceType é 'month')
-   * Permite selecionar múltiplos meses consecutivos
-   */
-  const handleMonthYearSelect = (date: Date | undefined) => {
-    if (priceType === "month" && date) {
-      const clickedMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-      clickedMonth.setHours(0, 0, 0, 0);
-
-      // Se já existe uma seleção
-      if (dateRange?.from && dateRange?.to) {
-        const currentStart = new Date(dateRange.from);
-        currentStart.setHours(0, 0, 0, 0);
-        const currentEnd = new Date(dateRange.to);
-        currentEnd.setHours(23, 59, 59, 999);
-
-        const currentStartMonth = new Date(
-          currentStart.getFullYear(),
-          currentStart.getMonth(),
-          1
-        );
-        const currentEndMonth = new Date(
-          currentEnd.getFullYear(),
-          currentEnd.getMonth(),
-          1
-        );
-
-        // Se clicou no mês inicial, limpa a seleção
-        if (clickedMonth.getTime() === currentStartMonth.getTime()) {
-          onDateRangeChange(undefined);
-          return;
-        }
-
-        // Se clicou antes do mês inicial, estende para trás
-        if (clickedMonth < currentStartMonth) {
-          // Verifica se é consecutivo
-          const prevMonth = new Date(currentStartMonth);
-          prevMonth.setMonth(prevMonth.getMonth() - 1);
-          if (clickedMonth.getTime() === prevMonth.getTime()) {
-            // Estende para trás
-            const newStart = new Date(
-              clickedMonth.getFullYear(),
-              clickedMonth.getMonth(),
-              1
-            );
-            newStart.setHours(0, 0, 0, 0);
-            onDateRangeChange({ from: newStart, to: currentEnd });
-            return;
-          }
-        }
-
-        // Se clicou depois do mês final, estende para frente
-        if (clickedMonth > currentEndMonth) {
-          // Verifica se é consecutivo
-          const nextMonth = new Date(currentEndMonth);
-          nextMonth.setMonth(nextMonth.getMonth() + 1);
-          if (clickedMonth.getTime() === nextMonth.getTime()) {
-            // Estende para frente
-            const newEnd = new Date(
-              clickedMonth.getFullYear(),
-              clickedMonth.getMonth() + 1,
-              0
-            );
-            newEnd.setHours(23, 59, 59, 999);
-            onDateRangeChange({ from: currentStart, to: newEnd });
-            return;
-          }
-        }
-
-        // Se clicou em um mês não consecutivo, inicia nova seleção
-        const newStart = new Date(
-          clickedMonth.getFullYear(),
-          clickedMonth.getMonth(),
-          1
-        );
-        newStart.setHours(0, 0, 0, 0);
-        const newEnd = new Date(
-          clickedMonth.getFullYear(),
-          clickedMonth.getMonth() + 1,
-          0
-        );
-        newEnd.setHours(23, 59, 59, 999);
-        onDateRangeChange({ from: newStart, to: newEnd });
-      } else {
-        // Primeira seleção: seleciona apenas o mês clicado
-        const startDate = new Date(
-          clickedMonth.getFullYear(),
-          clickedMonth.getMonth(),
-          1
-        );
-        startDate.setHours(0, 0, 0, 0);
-        const endDate = new Date(
-          clickedMonth.getFullYear(),
-          clickedMonth.getMonth() + 1,
-          0
-        );
-        endDate.setHours(23, 59, 59, 999);
-        onDateRangeChange({ from: startDate, to: endDate });
-      }
-    }
-  };
 
   /**
    * Verifica se um mês está ocupado (tem datas indisponíveis)
@@ -376,9 +325,7 @@ export function DateRangePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={`w-auto p-0 ${
-          priceType === "month" ? "month-selector" : ""
-        }`}
+        className="w-auto p-0"
         align="start"
       >
         {priceType === "month" || priceType === "biweek" ? (
@@ -394,7 +341,14 @@ export function DateRangePicker({
             }
             onSelect={
               priceType === "month"
-                ? handleMonthYearSelect
+                ? (date) => {
+                    // Para month, quando um dia é clicado, seleciona o mês completo
+                    if (date) {
+                      handleDateSelect({ from: date, to: undefined });
+                    } else {
+                      handleDateSelect(undefined);
+                    }
+                  }
                 : (date) => {
                     // Para biweek, quando um dia é clicado, calcula os 14 dias
                     if (date) {
@@ -404,18 +358,19 @@ export function DateRangePicker({
                     }
                   }
             }
+          month={priceType === "month" ? currentMonth : undefined}
           onMonthChange={
             priceType === "month"
               ? (month) => {
-                  // Quando o mês/ano muda no dropdown, seleciona automaticamente o mês
+                  // Atualiza o mês exibido quando navega com as setas
                   if (month) {
-                    handleMonthYearSelect(month);
+                    setCurrentMonth(month);
                   }
                 }
               : undefined
           }
           captionLayout={priceType === "month" ? "label" : "label"}
-          numberOfMonths={priceType === "month" ? 1 : 2}
+          numberOfMonths={priceType === "month" ? 2 : 2}
           fromYear={new Date().getFullYear()}
           toYear={new Date().getFullYear() + 10}
           locale={ptBR}

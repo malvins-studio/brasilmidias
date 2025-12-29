@@ -81,7 +81,8 @@ export function MediaFilters({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row px-16 gap-4 p-4 border-b bg-white">
+    <div className="w-full flex justify-center border-b bg-white">
+      <div className="w-full max-w-4xl flex flex-col sm:flex-row gap-4 p-4">
       <div className="flex-1 relative">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
@@ -167,6 +168,7 @@ export function MediaFilters({
         <Search className="mr-2 h-4 w-4" />
         {loading ? "Buscando..." : "Buscar"}
       </Button>
+      </div>
     </div>
   );
 }

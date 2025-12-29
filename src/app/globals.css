@@ -142,12 +142,4 @@
   width: 100% !important;
 }
 
-/* Esconde os dias do calendário quando for seleção mensal */
-.month-selector table,
-.month-selector .rdp-table,
-.month-selector .rdp-weekdays,
-.month-selector .rdp-week,
-.month-selector .rdp-day,
-.month-selector tbody {
-  display: none !important;
-}
+/* Mantém os dias visíveis no calendário mensal para permitir seleção por clique */
