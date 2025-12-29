@@ -1,13 +1,17 @@
-'use client';
+"use client";
 
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { CalendarIcon, Search, Check, ChevronsUpDown } from 'lucide-react';
-import { formatDate, cn } from '@/lib/utils';
-import type { DateRange } from 'react-day-picker';
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { CalendarIcon, Search, Check, ChevronsUpDown } from "lucide-react";
+import { formatDate, cn } from "@/lib/utils";
+import type { DateRange } from "react-day-picker";
 
 interface MediaFiltersProps {
   city: string;
@@ -61,7 +65,7 @@ export function MediaFilters({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault();
       if (filteredCities.length > 0 && !city) {
         // Se não há cidade selecionada mas há sugestões, seleciona a primeira
@@ -69,15 +73,15 @@ export function MediaFilters({
       }
       setOpen(false);
       onSearch();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       setOpen(false);
-    } else if (e.key === 'ArrowDown' && !open) {
+    } else if (e.key === "ArrowDown" && !open) {
       setOpen(true);
     }
   };
 
   return (
-    <div className="flex flex-col sm:flex-row gap-4 p-4 border-b bg-white">
+    <div className="flex flex-col sm:flex-row px-16 gap-4 p-4 border-b bg-white">
       <div className="flex-1 relative">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
@@ -94,8 +98,8 @@ export function MediaFilters({
               <ChevronsUpDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             </div>
           </PopoverTrigger>
-          <PopoverContent 
-            className="w-[var(--radix-popover-trigger-width)] p-0" 
+          <PopoverContent
+            className="w-[var(--radix-popover-trigger-width)] p-0"
             align="start"
             onOpenAutoFocus={(e) => e.preventDefault()}
           >
@@ -155,15 +159,14 @@ export function MediaFilters({
           />
         </PopoverContent>
       </Popover>
-      <Button 
-        onClick={onSearch} 
+      <Button
+        onClick={onSearch}
         disabled={loading}
         className="w-full sm:w-auto"
       >
         <Search className="mr-2 h-4 w-4" />
-        {loading ? 'Buscando...' : 'Buscar'}
+        {loading ? "Buscando..." : "Buscar"}
       </Button>
     </div>
   );
 }
-

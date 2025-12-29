@@ -208,7 +208,8 @@ export default function HomeContent() {
         loading={loading}
         availableCities={availableCities}
       />
-      <main className="flex gap-6 px-4 py-8">
+      <main className="container mx-auto px-4 py-8">
+        <div className="flex gap-6">
         {/* Lista de mídias */}
         <div className="flex-1">
           {loading ? (
@@ -226,7 +227,7 @@ export default function HomeContent() {
                   Mostrando {visibleMidias.length} de {midias.length} mídias na área visível
                 </div>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {displayMidias.map((media) => (
                   <MediaCard
                     key={media.id}
@@ -253,6 +254,7 @@ export default function HomeContent() {
             onBoundsChange={handleBoundsChange}
             onMapClick={handleMapClick}
           />
+        </div>
         </div>
       </main>
     </div>
