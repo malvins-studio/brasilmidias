@@ -40,7 +40,7 @@ export function MediaCard({ media, isReserved, onMouseEnter, onMouseLeave, cardI
       onMouseLeave={onMouseLeave}
     >
       <Link href={`/midia/${media.id}`} className="block">
-        <Card className="overflow-hidden hover:shadow-lg pt-0 pb-6 gap-4 transition-shadow cursor-pointer">
+        <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer py-0">
         <div className="relative aspect-video">
           <Image
             src={imageError || !media.images[0] ? "/placeholder.svg" : media.images[0]}
@@ -68,13 +68,13 @@ export function MediaCard({ media, isReserved, onMouseEnter, onMouseLeave, cardI
             />
           </Button>
         </div>
-        <CardContent className="p-2 pt-0">
-          <h3 className="font-semibold text-lg mb-1 truncate mt-0">{media.name}</h3>
-          <p className="text-sm text-muted-foreground mb-2">
+        <CardContent className="p-3 pt-0">
+          <h3 className="font-semibold text-base mb-1 truncate">{media.name}</h3>
+          <p className="text-xs text-muted-foreground mb-1.5">
             {media.city}, {media.state}
           </p>
           <div className="flex flex-col">
-            <span className="text-sm font-medium mb-1">{media.mediaType}</span>
+            <span className="text-xs font-medium mb-0.5">{media.mediaType}</span>
             <small className="text-xs text-muted-foreground">
               {media.companyName}
             </small>
