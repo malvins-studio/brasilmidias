@@ -23,7 +23,6 @@ export default function HomeContent() {
   const [hoveredMediaId, setHoveredMediaId] = useState<string | undefined>();
   const [visibleMidias, setVisibleMidias] = useState<Media[]>([]);
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
-  const [showMap, setShowMap] = useState(false);
 
   const { midias, loading, fetchMidias } = useMidias();
   const { getReservationsForPeriod } = useReservas();
@@ -70,8 +69,7 @@ export default function HomeContent() {
       setDateRange(undefined);
     }
 
-    // Verifica se há filtros na URL para mostrar o mapa
-    setShowMap(hasFilters);
+    // Mapa sempre visível, não precisa verificar filtros
 
     // Se houver filtros na URL, busca automaticamente (só uma vez)
     if (!hasSearched) {
@@ -127,8 +125,6 @@ export default function HomeContent() {
     }
     
     const queryString = params.toString();
-    const hasFilters = !!(cityFilter.trim() || (dateRange?.from && dateRange?.to));
-    setShowMap(hasFilters);
     
     router.push(queryString ? `/?${queryString}` : '/', { scroll: false });
   };
@@ -192,6 +188,9 @@ export default function HomeContent() {
     });
   }, [mapBounds, midias]);
 
+  // Quando não há mapBounds (mapa mostrando Brasil inteiro), mostra todas as mídias
+  const displayMidias = mapBounds && visibleMidias.length > 0 ? visibleMidias : midias;
+
   // Handler para clicar no mapa (será passado para o componente do mapa)
   const handleMapClick = useCallback(() => {
     setSelectedMediaId(undefined);
@@ -222,41 +221,39 @@ export default function HomeContent() {
             </div>
           ) : (
             <>
-              {showMap && mapBounds && visibleMidias.length < midias.length && visibleMidias.length > 0 && (
+              {mapBounds && visibleMidias.length < midias.length && visibleMidias.length > 0 && (
                 <div className="mb-4 text-sm text-muted-foreground">
                   Mostrando {visibleMidias.length} de {midias.length} mídias na área visível
                 </div>
               )}
-              <div className={`grid grid-cols-1 sm:grid-cols-2 ${showMap ? 'lg:grid-cols-2 xl:grid-cols-2' : 'lg:grid-cols-3 xl:grid-cols-4'} gap-6`}>
-                {(showMap ? visibleMidias : midias).map((media) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-6">
+                {displayMidias.map((media) => (
                   <MediaCard
                     key={media.id}
                     media={media}
                     isReserved={reservedMediaIds.has(media.id)}
-                    onMouseEnter={showMap ? () => setHoveredMediaId(media.id) : undefined}
-                    onMouseLeave={showMap ? () => setHoveredMediaId(undefined) : undefined}
+                    onMouseEnter={() => setHoveredMediaId(media.id)}
+                    onMouseLeave={() => setHoveredMediaId(undefined)}
                     cardId={`media-${media.id}`}
                   />
-              ))}
+                ))}
               </div>
             </>
           )}
         </div>
 
-        {/* Mapa - só aparece quando há busca/filtros */}
-        {showMap && (
-          <div className="hidden lg:block w-[500px] sticky top-8 h-[calc(100vh-120px)]">
-            <MediaMap
-              midias={midias}
-              selectedMediaId={selectedMediaId}
-              hoveredMediaId={hoveredMediaId}
-              onMarkerClick={handleMarkerClick}
-              onMarkerHover={handleMarkerHover}
-              onBoundsChange={handleBoundsChange}
-              onMapClick={handleMapClick}
-            />
-          </div>
-        )}
+        {/* Mapa - sempre visível */}
+        <div className="hidden lg:block w-[500px] sticky top-8 h-[calc(100vh-120px)]">
+          <MediaMap
+            midias={midias}
+            selectedMediaId={selectedMediaId}
+            hoveredMediaId={hoveredMediaId}
+            onMarkerClick={handleMarkerClick}
+            onMarkerHover={handleMarkerHover}
+            onBoundsChange={handleBoundsChange}
+            onMapClick={handleMapClick}
+          />
+        </div>
       </main>
     </div>
   );

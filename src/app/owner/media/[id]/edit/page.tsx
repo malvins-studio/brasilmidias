@@ -4,7 +4,7 @@
  * Página de Edição de Mídia
  * 
  * Permite ao owner editar uma mídia existente.
- * IMPORTANTE: O preço (pricePerDay) NÃO pode ser alterado após a criação.
+ * IMPORTANTE: O preço (price) NÃO pode ser alterado após a criação.
  */
 
 import { useState, useEffect } from 'react';
@@ -21,6 +21,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useOwnerMidias } from '@/hooks/useOwnerMidias';
 import { Media, Address, Coordinates } from '@/types';
 import { ImageManager } from '@/components/ImageManager';
+import CoordinatePicker from '@/components/CoordinatePicker';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 
@@ -41,10 +42,7 @@ export default function EditMediaPage() {
     mediaType: '',
     city: '',
     state: '',
-    pricePerDay: '', // Não editável, apenas exibição
-    pricePerWeek: '',
-    pricePerMonth: '',
-    priceType: 'day' as 'day' | 'week' | 'month',
+    price: '', // Não editável, apenas exibição
     traffic: '',
     trafficUnit: 'pessoas/dia',
     // Endereço
@@ -129,10 +127,7 @@ export default function EditMediaPage() {
           mediaType: mediaData.mediaType || '',
           city: mediaData.city || '',
           state: mediaData.state || '',
-          pricePerDay: mediaData.pricePerDay?.toString() || '',
-          pricePerWeek: mediaData.pricePerWeek?.toString() || '',
-          pricePerMonth: mediaData.pricePerMonth?.toString() || '',
-          priceType: mediaData.priceType || 'day',
+          price: mediaData.price?.toString() || '',
           traffic: mediaData.traffic?.toString() || '',
           trafficUnit: mediaData.trafficUnit || 'pessoas/dia',
           street: mediaData.address?.street || '',
@@ -243,6 +238,7 @@ export default function EditMediaPage() {
       const imagesArray = formData.images;
 
       // Monta o objeto de endereço
+      // Se complement estiver vazio, não inclui o campo (evita undefined no Firestore)
       const address: Address = {
         street: formData.street.trim(),
         number: formData.number.trim(),
@@ -250,7 +246,7 @@ export default function EditMediaPage() {
         city: formData.city.trim(),
         state: formData.state.trim(),
         zipCode: formData.zipCode.trim(),
-        complement: formData.complement.trim() || undefined,
+        ...(formData.complement.trim() ? { complement: formData.complement.trim() } : {}),
       };
 
       // Monta as coordenadas
@@ -259,7 +255,7 @@ export default function EditMediaPage() {
         lng: parseFloat(formData.lng),
       };
 
-      // Atualiza a mídia (sem alterar pricePerDay, ownerId, createdAt)
+      // Atualiza a mídia (sem alterar price, ownerId, createdAt)
       await updateMedia(mediaId, {
         name: formData.name.trim(),
         city: formData.city.trim(),
@@ -267,9 +263,7 @@ export default function EditMediaPage() {
         mediaType: formData.mediaType.trim(),
         traffic: parseInt(formData.traffic) || 0,
         trafficUnit: formData.trafficUnit,
-        pricePerWeek: formData.pricePerWeek ? parseFloat(formData.pricePerWeek) : undefined,
-        pricePerMonth: formData.pricePerMonth ? parseFloat(formData.pricePerMonth) : undefined,
-        priceType: formData.priceType,
+        priceType: 'biweek', // Sempre bi-semanal para o owner
         images: imagesArray,
         coordinates,
         address,
@@ -277,9 +271,6 @@ export default function EditMediaPage() {
       });
 
       setSuccess(true);
-      setTimeout(() => {
-        router.push('/owner/dashboard');
-      }, 2000);
     } catch (err) {
       const error = err as { message?: string };
       setError(error.message || 'Erro ao atualizar mídia');
@@ -390,77 +381,6 @@ export default function EditMediaPage() {
                       required
                     />
                   </div>
-                  {/* Seção de Preços */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Preços</h3>
-                    
-                    {/* Preço por Dia (não editável) */}
-                    <div>
-                      <Label htmlFor="pricePerDay">Preço por Dia (R$)</Label>
-                      <Input
-                        id="pricePerDay"
-                        value={formData.pricePerDay}
-                        disabled
-                        className="bg-gray-100"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        O preço por dia não pode ser alterado após a criação
-                      </p>
-                    </div>
-
-                    {/* Preço por Semana (opcional, editável) */}
-                    <div>
-                      <Label htmlFor="pricePerWeek">Preço por Semana (R$) (Opcional)</Label>
-                      <Input
-                        id="pricePerWeek"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.pricePerWeek}
-                        onChange={(e) => handleChange('pricePerWeek', e.target.value)}
-                        placeholder="6000.00"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Permite que clientes reservem por semana completa
-                      </p>
-                    </div>
-
-                    {/* Preço por Mês (opcional, editável) */}
-                    <div>
-                      <Label htmlFor="pricePerMonth">Preço por Mês (R$) (Opcional)</Label>
-                      <Input
-                        id="pricePerMonth"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.pricePerMonth}
-                        onChange={(e) => handleChange('pricePerMonth', e.target.value)}
-                        placeholder="25000.00"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Permite que clientes reservem por mês completo
-                      </p>
-                    </div>
-
-                    {/* Tipo de Preço Padrão (editável) */}
-                    <div>
-                      <Label htmlFor="priceType">Tipo de Preço Padrão *</Label>
-                      <select
-                        id="priceType"
-                        value={formData.priceType}
-                        onChange={(e) => handleChange('priceType', e.target.value as 'day' | 'week' | 'month')}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      >
-                        <option value="day">Por Dia</option>
-                        {formData.pricePerWeek && <option value="week">Por Semana</option>}
-                        {formData.pricePerMonth && <option value="month">Por Mês</option>}
-                      </select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Tipo de preço que será exibido por padrão na página da mídia
-                      </p>
-                    </div>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -482,6 +402,33 @@ export default function EditMediaPage() {
                     />
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Preços */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Preços</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Preço */}
+                <div>
+                  <Label htmlFor="price">Preço Bi-semanal (R$) *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.price}
+                    onChange={(e) => handleChange('price', e.target.value)}
+                    placeholder="1000.00"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Preço por bi-semana (14 dias). O preço mensal será calculado automaticamente como 2x este valor.
+                  </p>
+                </div>
+
               </CardContent>
             </Card>
 
@@ -547,9 +494,21 @@ export default function EditMediaPage() {
             {/* Coordenadas */}
             <Card>
               <CardHeader>
-                <CardTitle>Coordenadas</CardTitle>
+                <CardTitle>Localização no Mapa</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div>
+                  <Label>Clique no mapa para selecionar a localização</Label>
+                  <CoordinatePicker
+                    lat={formData.lat ? parseFloat(formData.lat) : null}
+                    lng={formData.lng ? parseFloat(formData.lng) : null}
+                    onCoordinateChange={(lat, lng) => {
+                      handleChange('lat', lat.toString());
+                      handleChange('lng', lng.toString());
+                    }}
+                    height="400px"
+                  />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="lat">Latitude *</Label>
@@ -559,6 +518,7 @@ export default function EditMediaPage() {
                       step="any"
                       value={formData.lat}
                       onChange={(e) => handleChange('lat', e.target.value)}
+                      placeholder="-23.5505"
                       required
                     />
                   </div>
@@ -570,10 +530,14 @@ export default function EditMediaPage() {
                       step="any"
                       value={formData.lng}
                       onChange={(e) => handleChange('lng', e.target.value)}
+                      placeholder="-46.6333"
                       required
                     />
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Você pode clicar no mapa acima ou digitar as coordenadas manualmente
+                </p>
               </CardContent>
             </Card>
 

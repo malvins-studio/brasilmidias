@@ -22,12 +22,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useOwnerMidias } from '@/hooks/useOwnerMidias';
 import { Address, Coordinates } from '@/types';
 import { ImageManager } from '@/components/ImageManager';
+import CoordinatePicker from '@/components/CoordinatePicker';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 
@@ -43,10 +43,7 @@ export default function NewMediaPage() {
     mediaType: '',
     city: '',
     state: '',
-    pricePerDay: '',
-    pricePerWeek: '',
-    pricePerMonth: '',
-    priceType: 'day' as 'day' | 'week' | 'month',
+    price: '',
     traffic: '',
     trafficUnit: 'pessoas/dia',
     // Endereço
@@ -100,19 +97,8 @@ export default function NewMediaPage() {
       setError('Estado é obrigatório');
       return false;
     }
-    if (!formData.pricePerDay || parseFloat(formData.pricePerDay) <= 0) {
-      setError('Preço por dia é obrigatório e deve ser maior que zero');
-      return false;
-    }
-    
-    // Valida preços opcionais se preenchidos
-    if (formData.pricePerWeek && parseFloat(formData.pricePerWeek) <= 0) {
-      setError('Preço por semana deve ser maior que zero');
-      return false;
-    }
-    
-    if (formData.pricePerMonth && parseFloat(formData.pricePerMonth) <= 0) {
-      setError('Preço por mês deve ser maior que zero');
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      setError('Preço é obrigatório e deve ser maior que zero');
       return false;
     }
     if (!formData.street.trim()) {
@@ -170,6 +156,7 @@ export default function NewMediaPage() {
       const imagesArray = formData.images;
 
       // Monta o objeto de endereço
+      // Se complement estiver vazio, não inclui o campo (evita undefined no Firestore)
       const address: Address = {
         street: formData.street.trim(),
         number: formData.number.trim(),
@@ -177,7 +164,7 @@ export default function NewMediaPage() {
         city: formData.city.trim(),
         state: formData.state.trim(),
         zipCode: formData.zipCode.trim(),
-        complement: formData.complement.trim() || undefined,
+        ...(formData.complement.trim() ? { complement: formData.complement.trim() } : {}),
       };
 
       // Monta as coordenadas
@@ -212,10 +199,8 @@ export default function NewMediaPage() {
         mediaType: formData.mediaType.trim(),
         traffic: parseInt(formData.traffic) || 0,
         trafficUnit: formData.trafficUnit,
-        pricePerDay: parseFloat(formData.pricePerDay),
-        pricePerWeek: formData.pricePerWeek ? parseFloat(formData.pricePerWeek) : undefined,
-        pricePerMonth: formData.pricePerMonth ? parseFloat(formData.pricePerMonth) : undefined,
-        priceType: formData.priceType,
+        price: parseFloat(formData.price),
+        priceType: 'biweek' as const, // Sempre bi-semanal para o owner
         images: imagesArray,
         coordinates,
         address,
@@ -227,10 +212,6 @@ export default function NewMediaPage() {
       await createMedia(mediaData);
 
       setSuccess(true);
-      // Redireciona para o dashboard após 2 segundos
-      setTimeout(() => {
-        router.push('/owner/dashboard');
-      }, 2000);
     } catch (err) {
       const error = err as { message?: string };
       setError(error.message || 'Erro ao cadastrar mídia');
@@ -328,82 +309,6 @@ export default function NewMediaPage() {
                   </div>
                 </div>
 
-                {/* Seção de Preços */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Preços</h3>
-                  
-                  {/* Preço por Dia (obrigatório) */}
-                  <div>
-                    <Label htmlFor="pricePerDay">Preço por Dia (R$) *</Label>
-                    <Input
-                      id="pricePerDay"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.pricePerDay}
-                      onChange={(e) => handleChange('pricePerDay', e.target.value)}
-                      placeholder="1000.00"
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Preço base obrigatório para cálculo diário
-                    </p>
-                  </div>
-
-                  {/* Preço por Semana (opcional) */}
-                  <div>
-                    <Label htmlFor="pricePerWeek">Preço por Semana (R$) (Opcional)</Label>
-                    <Input
-                      id="pricePerWeek"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.pricePerWeek}
-                      onChange={(e) => handleChange('pricePerWeek', e.target.value)}
-                      placeholder="6000.00"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Permite que clientes reservem por semana completa
-                    </p>
-                  </div>
-
-                  {/* Preço por Mês (opcional) */}
-                  <div>
-                    <Label htmlFor="pricePerMonth">Preço por Mês (R$) (Opcional)</Label>
-                    <Input
-                      id="pricePerMonth"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.pricePerMonth}
-                      onChange={(e) => handleChange('pricePerMonth', e.target.value)}
-                      placeholder="25000.00"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Permite que clientes reservem por mês completo
-                    </p>
-                  </div>
-
-                  {/* Tipo de Preço Padrão */}
-                  <div>
-                    <Label htmlFor="priceType">Tipo de Preço Padrão *</Label>
-                    <select
-                      id="priceType"
-                      value={formData.priceType}
-                      onChange={(e) => handleChange('priceType', e.target.value as 'day' | 'week' | 'month')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    >
-                      <option value="day">Por Dia</option>
-                      {formData.pricePerWeek && <option value="week">Por Semana</option>}
-                      {formData.pricePerMonth && <option value="month">Por Mês</option>}
-                    </select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Tipo de preço que será exibido por padrão na página da mídia
-                    </p>
-                  </div>
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="traffic">Tráfego</Label>
@@ -495,9 +400,21 @@ export default function NewMediaPage() {
             {/* Coordenadas */}
             <Card>
               <CardHeader>
-                <CardTitle>Coordenadas (para o mapa)</CardTitle>
+                <CardTitle>Localização no Mapa</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div>
+                  <Label>Clique no mapa para selecionar a localização</Label>
+                  <CoordinatePicker
+                    lat={formData.lat ? parseFloat(formData.lat) : null}
+                    lng={formData.lng ? parseFloat(formData.lng) : null}
+                    onCoordinateChange={(lat, lng) => {
+                      handleChange('lat', lat.toString());
+                      handleChange('lng', lng.toString());
+                    }}
+                    height="400px"
+                  />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="lat">Latitude *</Label>
@@ -510,9 +427,6 @@ export default function NewMediaPage() {
                       placeholder="-23.5505"
                       required
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Use Google Maps para encontrar as coordenadas
-                    </p>
                   </div>
                   <div>
                     <Label htmlFor="lng">Longitude *</Label>
@@ -527,6 +441,9 @@ export default function NewMediaPage() {
                     />
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Você pode clicar no mapa acima ou digitar as coordenadas manualmente
+                </p>
               </CardContent>
             </Card>
 

@@ -7,28 +7,62 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Calcula o preço total baseado no tipo de preço e período selecionado
- * @param pricePerDay Preço por dia
- * @param pricePerWeek Preço por semana (opcional)
- * @param pricePerMonth Preço por mês (opcional)
- * @param priceType Tipo de preço: 'day', 'week' ou 'month'
+ * @param price Preço base (a unidade é definida por priceType)
  * @param startDate Data de início
  * @param endDate Data de fim
+ * @param priceType Tipo de preço: 'day', 'week', 'biweek' ou 'month'
+ * @param pricePerWeek Preço por semana (opcional)
+ * @param pricePerBiweek Preço por bi-semana (opcional)
+ * @param pricePerMonth Preço por mês (opcional)
  * @returns Preço total calculado
  */
 export function calculatePrice(
-  pricePerDay: number,
+  price: number,
   startDate: Date,
   endDate: Date,
-  priceType: 'day' | 'week' | 'month' = 'day',
+  priceType: 'day' | 'week' | 'biweek' | 'month' = 'day',
   pricePerWeek?: number,
+  pricePerBiweek?: number,
   pricePerMonth?: number
 ): number {
+  // Para mensal: calcula quantos meses completos estão selecionados
+  // Se o preço base é bi-semanal, 1 mês = 2 bi-semanas (2x o preço)
+  if (priceType === 'month') {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Calcula meses completos
+    let months = 0;
+    let current = new Date(start.getFullYear(), start.getMonth(), 1);
+    
+    while (current <= end) {
+      months++;
+      current.setMonth(current.getMonth() + 1);
+    }
+    
+    // Se o preço base é bi-semanal, multiplica por 2 (1 mês = 2 bi-semanas)
+    // Se pricePerMonth estiver definido, usa ele; senão, calcula 2x o preço bi-semanal
+    const pricePerMonthValue = pricePerMonth ?? (price * 2);
+    return pricePerMonthValue * months;
+  }
+  
+  // Para bi-semanal: calcula quantas bi-semanas completas estão selecionadas (14 dias)
+  if (priceType === 'biweek') {
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const biweeks = Math.floor(diffDays / 14);
+    
+    const pricePerBiweekValue = pricePerBiweek ?? price;
+    return pricePerBiweekValue * biweeks;
+  }
+  
+  // Para os outros tipos, calcula baseado em dias
   const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   
   // Se for por dia, calcula normalmente
   if (priceType === 'day') {
-    return pricePerDay * diffDays;
+    return price * diffDays;
   }
   
   // Se for por semana
@@ -37,43 +71,8 @@ export function calculatePrice(
     return pricePerWeek * weeks;
   }
   
-  // Se for por mês
-  if (priceType === 'month' && pricePerMonth) {
-    // Calcula meses completos + dias restantes
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    let months = 0;
-    let currentDate = new Date(start);
-    
-    while (currentDate < end) {
-      const nextMonth = new Date(currentDate);
-      nextMonth.setMonth(nextMonth.getMonth() + 1);
-      
-      if (nextMonth <= end) {
-        months++;
-        currentDate = nextMonth;
-      } else {
-        break;
-      }
-    }
-    
-    // Se sobraram dias, calcula proporcionalmente ou usa preço por dia
-    const remainingDays = Math.ceil((end.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (remainingDays > 0) {
-      // Se sobraram mais de 7 dias, adiciona mais um mês, senão calcula por dia
-      if (remainingDays >= 7) {
-        months++;
-      } else {
-        return (pricePerMonth * months) + (pricePerDay * remainingDays);
-      }
-    }
-    
-    return pricePerMonth * months;
-  }
-  
   // Fallback: calcula por dia se o tipo não for suportado ou valores não estiverem disponíveis
-  return pricePerDay * diffDays;
+  return price * diffDays;
 }
 
 export function formatDate(date: Date): string {
