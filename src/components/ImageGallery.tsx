@@ -13,8 +13,16 @@ interface ImageGalleryProps {
 
 export function ImageGallery({ images, alt }: ImageGalleryProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
 
-  const validImages = images.map((image, index) => ({ image, index }));
+  // Filtra imagens válidas e não falhadas
+  const validImages = images
+    .map((image, index) => ({ image, index }))
+    .filter(({ image, index }) => image && !failedImages.has(index));
+
+  const handleImageError = (index: number) => {
+    setFailedImages((prev) => new Set(prev).add(index));
+  };
 
   const openGallery = (index: number) => {
     // Encontra o índice real na lista de imagens válidas
@@ -84,6 +92,8 @@ export function ImageGallery({ images, alt }: ImageGalleryProps) {
             alt={`${alt} - Imagem principal`}
             fill
             className="object-cover"
+            onError={() => handleImageError(mainImage.index)}
+            unoptimized
           />
         </div>
 
@@ -100,6 +110,8 @@ export function ImageGallery({ images, alt }: ImageGalleryProps) {
                 alt={`${alt} - Imagem ${index + 1}`}
                 fill
                 className="object-cover"
+                onError={() => handleImageError(index)}
+                unoptimized
               />
             </div>
           ))}
@@ -161,6 +173,8 @@ export function ImageGallery({ images, alt }: ImageGalleryProps) {
                   height={800}
                   className="max-w-full max-h-full object-contain"
                   priority
+                  onError={() => handleImageError(currentImage.index)}
+                  unoptimized
                 />
               </div>
 

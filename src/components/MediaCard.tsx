@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Heart } from "lucide-react";
@@ -22,6 +23,7 @@ export function MediaCard({ media, isReserved, onMouseEnter, onMouseLeave, cardI
   const { isFavorito, toggleFavorito } = useFavoritos();
   const { user } = useAuth();
   const favorited = isFavorito(media.id);
+  const [imageError, setImageError] = useState(false);
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -41,10 +43,12 @@ export function MediaCard({ media, isReserved, onMouseEnter, onMouseLeave, cardI
         <Card className="overflow-hidden hover:shadow-lg pt-0 pb-6 gap-4 transition-shadow cursor-pointer">
         <div className="relative aspect-video">
           <Image
-            src={media.images[0] || "/placeholder.svg"}
+            src={imageError || !media.images[0] ? "/placeholder.svg" : media.images[0]}
             alt={media.name}
             fill
             className="object-cover"
+            onError={() => setImageError(true)}
+            unoptimized
           />
           {isReserved && (
             <Badge className="absolute top-2 left-2" variant="destructive">
