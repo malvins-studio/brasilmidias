@@ -68,6 +68,7 @@ export interface Company {
   id: string;
   name: string;
   logo?: string; // Logo da empresa (opcional)
+  stripeAccountId?: string; // ID da conta Stripe Connect da company
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -83,7 +84,6 @@ export interface User {
   cnpj?: string; // CNPJ do cliente (apenas números)
   documentType?: 'cpf' | 'cnpj'; // Tipo de documento (CPF ou CNPJ)
   phone?: string; // Telefone do cliente (apenas números, formato: (00) 00000-0000)
-  stripeAccountId?: string; // ID da conta Stripe Connect do owner
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }

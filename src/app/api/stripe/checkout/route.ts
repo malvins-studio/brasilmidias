@@ -8,12 +8,12 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 // Porcentagem da plataforma (ex: 15%)
-const PLATFORM_FEE_PERCENTAGE = 15;
+const PLATFORM_FEE_PERCENTAGE = 7;
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { mediaId, startDate, endDate, totalPrice, userId } = body;
+    const { mediaId, startDate, endDate, totalPrice, userId, customerEmail } = body;
 
     if (!mediaId || !startDate || !endDate || !totalPrice || !userId) {
       return NextResponse.json(
@@ -33,17 +33,17 @@ export async function POST(request: NextRequest) {
 
     const media = mediaDoc.data();
     
-    // Busca o stripeAccountId do owner através do User
+    // Busca o stripeAccountId da company através do companyId
     let ownerStripeAccountId: string | null = null;
-    if (media.ownerId) {
+    if (media.companyId) {
       try {
-        const ownerDoc = await getDoc(doc(db, 'users', media.ownerId));
-        if (ownerDoc.exists()) {
-          const ownerData = ownerDoc.data();
-          ownerStripeAccountId = ownerData.stripeAccountId || null;
+        const companyDoc = await getDoc(doc(db, 'companies', media.companyId));
+        if (companyDoc.exists()) {
+          const companyData = companyDoc.data();
+          ownerStripeAccountId = companyData.stripeAccountId || null;
         }
       } catch (error) {
-        console.error('Error fetching owner data:', error);
+        console.error('Error fetching company data:', error);
       }
     }
     
@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
       mode: 'payment',
       success_url: `${request.headers.get('origin')}/dashboard?success=true`,
       cancel_url: `${request.headers.get('origin')}/midia/${mediaId}?canceled=true`,
+      customer_email: customerEmail || undefined,
       metadata: {
         reservationId: reservationRef.id,
         mediaId,

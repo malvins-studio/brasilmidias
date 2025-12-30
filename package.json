@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:debug": "NODE_OPTIONS='--inspect' next dev",
     "build": "next build",
     "start": "next start",
+    "start:debug": "NODE_OPTIONS='--inspect' next start",
     "lint": "eslint",
     "firebase:seed": "tsx scripts/firebase-seed.ts",
     "firebase:clear": "tsx scripts/firebase-clear.ts",

@@ -40,10 +40,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verifica se já tem uma conta Stripe Connect
-    if (user.stripeAccountId) {
+    // Verifica se o usuário tem companyId
+    if (!user.companyId) {
       return NextResponse.json(
-        { error: 'Usuário já possui uma conta Stripe Connect' },
+        { error: 'Usuário não está associado a uma empresa. Associe-se a uma empresa primeiro.' },
+        { status: 400 }
+      );
+    }
+
+    // Verifica se a company já tem uma conta Stripe Connect
+    const companyDoc = await getDoc(doc(db, 'companies', user.companyId));
+    if (!companyDoc.exists()) {
+      return NextResponse.json(
+        { error: 'Empresa não encontrada' },
+        { status: 404 }
+      );
+    }
+
+    const company = companyDoc.data();
+    if (company.stripeAccountId) {
+      return NextResponse.json(
+        { error: 'Empresa já possui uma conta Stripe Connect' },
         { status: 400 }
       );
     }
@@ -59,12 +76,12 @@ export async function POST(request: NextRequest) {
       },
       metadata: {
         userId,
-        companyId: user.companyId || '',
+        companyId: user.companyId,
       },
     });
 
-    // Salva o accountId no perfil do usuário
-    await updateDoc(doc(db, 'users', userId), {
+    // Salva o accountId na company
+    await updateDoc(doc(db, 'companies', user.companyId), {
       stripeAccountId: account.id,
       updatedAt: new Date(),
     });

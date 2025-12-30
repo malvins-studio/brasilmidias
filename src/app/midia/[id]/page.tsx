@@ -270,6 +270,7 @@ export default function MediaDetailPage() {
           endDate: dateRange.to.toISOString(),
           totalPrice,
           userId: user.uid,
+          customerEmail: user.email || undefined,
         }),
       });
 
@@ -390,8 +391,8 @@ export default function MediaDetailPage() {
             </Card>
           </div>
 
-          <div className="lg:col-span-1">
-            <Card className="sticky top-8">
+          <div className="sticky lg:col-span-1">
+            <Card className="top-8">
               <CardContent className="p-6 space-y-6">
                 <div>
                   {/* Seleção do tipo de preço */}

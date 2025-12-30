@@ -33,16 +33,34 @@ export async function POST(request: NextRequest) {
 
     const user = userDoc.data();
 
-    if (!user.stripeAccountId) {
+    if (!user.companyId) {
       return NextResponse.json(
-        { error: 'Usuário não possui conta Stripe Connect. Crie uma conta primeiro.' },
+        { error: 'Usuário não está associado a uma empresa' },
+        { status: 400 }
+      );
+    }
+
+    // Busca a company
+    const companyDoc = await getDoc(doc(db, 'companies', user.companyId));
+    if (!companyDoc.exists()) {
+      return NextResponse.json(
+        { error: 'Empresa não encontrada' },
+        { status: 404 }
+      );
+    }
+
+    const company = companyDoc.data();
+
+    if (!company.stripeAccountId) {
+      return NextResponse.json(
+        { error: 'Empresa não possui conta Stripe Connect. Crie uma conta primeiro.' },
         { status: 400 }
       );
     }
 
     // Cria o link de onboarding
     const accountLink = await stripe.accountLinks.create({
-      account: user.stripeAccountId,
+      account: company.stripeAccountId,
       refresh_url: `${request.headers.get('origin')}/owner/dashboard?stripe_refresh=true`,
       return_url: `${request.headers.get('origin')}/owner/dashboard?stripe_success=true`,
       type: 'account_onboarding',
