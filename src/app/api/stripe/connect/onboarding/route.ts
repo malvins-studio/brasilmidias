@@ -48,9 +48,12 @@ export async function POST(request: NextRequest) {
       type: 'account_onboarding',
     });
 
+    const urlWithLocale = new URL(accountLink.url);
+    urlWithLocale.searchParams.set('locale', 'pt-BR');
+
     return NextResponse.json({
       success: true,
-      url: accountLink.url,
+      url: urlWithLocale.toString(),
     });
   } catch (error: unknown) {
     console.error('Error creating onboarding link:', error);
