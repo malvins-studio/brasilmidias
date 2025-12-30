@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +13,7 @@ import { ptBR } from 'date-fns/locale/pt-BR';
 import { Calendar, ShoppingCart, Loader2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
-export default function CampaignsPage() {
+function CampaignsContent() {
   const { user, loading: authLoading } = useAuth();
   const { campaigns, campaignMedias, getCampaignTotalPrice, loading, setActiveCampaign, refetch } = useCampaign();
   const router = useRouter();
@@ -139,6 +139,22 @@ export default function CampaignsPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function CampaignsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container mx-auto px-4 py-12 text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Carregando...</p>
+        </div>
+      </div>
+    }>
+      <CampaignsContent />
+    </Suspense>
   );
 }
 

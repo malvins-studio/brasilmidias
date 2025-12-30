@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -14,7 +14,7 @@ import { StripeConnectCard } from '../dashboard/components/StripeConnectCard';
 
 type Step = 'company' | 'stripe';
 
-export default function OwnerOnboardingPage() {
+function OwnerOnboardingContent() {
   const { user, loading: authLoading } = useAuth();
   const { userRole, loading: roleLoading, refetch } = useUserRole();
   const router = useRouter();
@@ -266,6 +266,22 @@ export default function OwnerOnboardingPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function OwnerOnboardingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container mx-auto px-4 py-12 text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Carregando...</p>
+        </div>
+      </div>
+    }>
+      <OwnerOnboardingContent />
+    </Suspense>
   );
 }
 
