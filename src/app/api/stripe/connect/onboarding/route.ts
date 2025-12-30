@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     });
 
     const urlWithLocale = new URL(accountLink.url);
-    urlWithLocale.searchParams.set('locale', 'pt-BR');
+    urlWithLocale.searchParams.set('stripe_locale', 'pt-BR');
 
     return NextResponse.json({
       success: true,
