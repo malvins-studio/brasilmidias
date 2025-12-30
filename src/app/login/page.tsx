@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,281 +11,79 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   translateFirebaseError, 
-  validateCPF, 
-  validateCNPJ, 
   formatCPF, 
   formatCNPJ,
-  validatePhone,
   formatPhone,
   applyPhoneMask,
   removeNonNumeric 
 } from '@/lib/utils';
-import { AlertCircle } from 'lucide-react';
+import { loginSchema, signupSchema, type LoginFormData, type SignupFormData } from '@/lib/validations';
+import { AlertCircle, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  // Campos de CPF/CNPJ (apenas no cadastro)
+  const [showPassword, setShowPassword] = useState(false);
   const [documentType, setDocumentType] = useState<'cpf' | 'cnpj'>('cpf');
-  const [document, setDocument] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  
-  // Estados de validação (mensagens de erro por campo)
-  const [errors, setErrors] = useState<{
-    email?: string;
-    password?: string;
-    name?: string;
-    document?: string;
-    phone?: string;
-  }>({});
-  
-  // Estados para controlar quando validar (após o usuário interagir)
-  const [touched, setTouched] = useState<{
-    email?: boolean;
-    password?: boolean;
-    name?: boolean;
-    document?: boolean;
-    phone?: boolean;
-  }>({});
   
   const { login, signup, loginWithGoogle } = useAuth();
   const router = useRouter();
 
-  // Validação de email
-  const validateEmail = (email: string): string | undefined => {
-    if (!email) {
-      return 'Email é obrigatório';
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return 'Email inválido';
-    }
-    return undefined;
-  };
+  // Form para login
+  const loginForm = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
-  // Validação de senha
-  const validatePassword = (password: string): string | undefined => {
-    if (!password) {
-      return 'Senha é obrigatória';
-    }
-    if (password.length < 6) {
-      return 'A senha deve ter pelo menos 6 caracteres';
-    }
-    return undefined;
-  };
+  // Form para cadastro
+  const signupForm = useForm<SignupFormData>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      firstName: '',
+      lastName: '',
+      documentType: 'cpf',
+      document: '',
+      phone: '',
+    },
+  });
 
-  // Validação do documento
-  const validateDocument = (doc: string, type: 'cpf' | 'cnpj'): string | undefined => {
-    const cleanDoc = removeNonNumeric(doc);
-    
-    if (!cleanDoc) {
-      return 'CPF ou CNPJ é obrigatório';
-    }
-    
-    if (type === 'cpf') {
-      if (cleanDoc.length !== 11) {
-        return 'CPF deve ter 11 dígitos';
-      }
-      if (!validateCPF(cleanDoc)) {
-        return 'CPF inválido';
-      }
-    } else {
-      if (cleanDoc.length !== 14) {
-        return 'CNPJ deve ter 14 dígitos';
-      }
-      if (!validateCNPJ(cleanDoc)) {
-        return 'CNPJ inválido';
-      }
-    }
-    
-    return undefined;
-  };
-
-  const handleEmailChange = (value: string) => {
-    setEmail(value);
-    if (touched.email) {
-      const error = validateEmail(value);
-      setErrors(prev => ({ ...prev, email: error }));
-    }
-  };
-
-  const handleEmailBlur = () => {
-    setTouched(prev => ({ ...prev, email: true }));
-    const error = validateEmail(email);
-    setErrors(prev => ({ ...prev, email: error }));
-  };
-
-  const handlePasswordChange = (value: string) => {
-    setPassword(value);
-    if (touched.password) {
-      const error = validatePassword(value);
-      setErrors(prev => ({ ...prev, password: error }));
-    }
-  };
-
-  const handlePasswordBlur = () => {
-    setTouched(prev => ({ ...prev, password: true }));
-    const error = validatePassword(password);
-    setErrors(prev => ({ ...prev, password: error }));
-  };
-
-  const handleDocumentChange = (value: string) => {
-    // Remove caracteres não numéricos
-    const cleanValue = removeNonNumeric(value);
-    setDocument(cleanValue);
-    
-    // Valida em tempo real se o campo foi tocado
-    if (touched.document) {
-      const error = validateDocument(cleanValue, documentType);
-      setErrors(prev => ({ ...prev, document: error }));
-    }
-  };
-
-  const handleDocumentBlur = () => {
-    setTouched(prev => ({ ...prev, document: true }));
-    
-    // Formata o documento ao sair do campo
-    const cleanDoc = removeNonNumeric(document);
-    if (documentType === 'cpf' && cleanDoc.length === 11) {
-      setDocument(formatCPF(cleanDoc));
-    } else if (documentType === 'cnpj' && cleanDoc.length === 14) {
-      setDocument(formatCNPJ(cleanDoc));
-    }
-    
-    // Valida ao sair do campo
-    const error = validateDocument(document, documentType);
-    setErrors(prev => ({ ...prev, document: error }));
-  };
-
-  const handleNameChange = (value: string) => {
-    setName(value);
-    if (touched.name) {
-      if (value.trim().length > 0 && value.trim().length < 3) {
-        setErrors(prev => ({ ...prev, name: 'Nome deve ter pelo menos 3 caracteres' }));
-      } else {
-        setErrors(prev => ({ ...prev, name: undefined }));
-      }
-    }
-  };
-
-  const handleNameBlur = () => {
-    setTouched(prev => ({ ...prev, name: true }));
-    if (name.trim().length > 0 && name.trim().length < 3) {
-      setErrors(prev => ({ ...prev, name: 'Nome deve ter pelo menos 3 caracteres' }));
-    } else {
-      setErrors(prev => ({ ...prev, name: undefined }));
-    }
-  };
-
-  // Validação de telefone
-  const validatePhoneField = (phoneValue: string): string | undefined => {
-    if (!phoneValue) {
-      return undefined; // Telefone é opcional
-    }
-    const cleanPhone = removeNonNumeric(phoneValue);
-    if (cleanPhone.length !== 10 && cleanPhone.length !== 11) {
-      return 'Telefone deve ter 10 ou 11 dígitos (com DDD)';
-    }
-    if (!validatePhone(cleanPhone)) {
-      return 'Telefone inválido';
-    }
-    return undefined;
-  };
-
-  const handlePhoneChange = (value: string) => {
-    // Aplica máscara em tempo real
-    const maskedValue = applyPhoneMask(value);
-    setPhone(maskedValue);
-    
-    // Valida em tempo real se o campo foi tocado
-    if (touched.phone) {
-      const cleanValue = removeNonNumeric(maskedValue);
-      const error = validatePhoneField(cleanValue);
-      setErrors(prev => ({ ...prev, phone: error }));
-    }
-  };
-
-  const handlePhoneBlur = () => {
-    setTouched(prev => ({ ...prev, phone: true }));
-    
-    // Formata o telefone ao sair do campo (garante formatação correta)
-    const cleanPhone = removeNonNumeric(phone);
-    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
-      setPhone(formatPhone(cleanPhone));
-    }
-    
-    // Valida ao sair do campo
-    const cleanPhoneForValidation = removeNonNumeric(phone);
-    const error = validatePhoneField(cleanPhoneForValidation);
-    setErrors(prev => ({ ...prev, phone: error }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmitLogin = async (data: LoginFormData) => {
     setError('');
-    
-    // Marca todos os campos como tocados para mostrar erros
-    const fieldsToTouch: typeof touched = { email: true, password: true };
-    if (isSignUp) {
-      fieldsToTouch.name = true;
-      fieldsToTouch.document = true;
-      fieldsToTouch.phone = true;
-    }
-    setTouched(fieldsToTouch);
-    
-    // Valida todos os campos
-    const newErrors: typeof errors = {};
-    
-    const emailError = validateEmail(email);
-    if (emailError) newErrors.email = emailError;
-    
-    const passwordError = validatePassword(password);
-    if (passwordError) newErrors.password = passwordError;
-    
-    if (isSignUp) {
-      if (name.trim().length > 0 && name.trim().length < 3) {
-        newErrors.name = 'Nome deve ter pelo menos 3 caracteres';
-      }
-      
-      const cleanDocument = removeNonNumeric(document);
-      const docError = validateDocument(document, documentType);
-      if (docError) newErrors.document = docError;
-      
-      const phoneError = validatePhoneField(phone);
-      if (phoneError) newErrors.phone = phoneError;
-    }
-    
-    setErrors(newErrors);
-    
-    // Se houver erros, não submete
-    if (Object.values(newErrors).some(err => err !== undefined)) {
-      return;
-    }
-    
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        const cleanDocument = removeNonNumeric(document);
-        
-        // Chama signup com os dados adicionais
-        const cleanPhone = removeNonNumeric(phone);
-        await signup(email, password, {
-          name: name || undefined,
-          documentType,
-          cpf: documentType === 'cpf' ? cleanDocument : undefined,
-          cnpj: documentType === 'cnpj' ? cleanDocument : undefined,
-          phone: cleanPhone || undefined,
-        });
-      } else {
-        await login(email, password);
-      }
+      await login(data.email, data.password);
+      router.push('/');
+    } catch (err: unknown) {
+      setError(translateFirebaseError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onSubmitSignup = async (data: SignupFormData) => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const cleanPhone = removeNonNumeric(data.phone);
+      const cleanDocument = removeNonNumeric(data.document);
+      const fullName = `${data.firstName.trim()} ${data.lastName.trim()}`.trim();
+      
+      await signup(data.email, data.password, {
+        name: fullName,
+        documentType: data.documentType,
+        cpf: data.documentType === 'cpf' ? cleanDocument : undefined,
+        cnpj: data.documentType === 'cnpj' ? cleanDocument : undefined,
+        phone: cleanPhone,
+      });
       router.push('/');
     } catch (err: unknown) {
       setError(translateFirebaseError(err));
@@ -306,6 +106,15 @@ export default function LoginPage() {
     }
   };
 
+  const handleToggleSignUp = () => {
+    setIsSignUp(!isSignUp);
+    // Limpa os formulários ao alternar
+    loginForm.reset();
+    signupForm.reset();
+    setDocumentType('cpf');
+    setError('');
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
@@ -316,48 +125,66 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => handleEmailChange(e.target.value)}
-                onBlur={handleEmailBlur}
-                className={touched.email && errors.email ? 'border-red-500' : ''}
-                required
-              />
-              {touched.email && errors.email && (
-                <p className="text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  {errors.email}
-                </p>
-              )}
-            </div>
+          {isSignUp ? (
+            <form onSubmit={signupForm.handleSubmit(onSubmitSignup)} className="space-y-4">
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  {...signupForm.register('email')}
+                  className={signupForm.formState.errors.email ? 'border-red-500' : ''}
+                />
+                {signupForm.formState.errors.email && (
+                  <p className="text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {signupForm.formState.errors.email.message}
+                  </p>
+                )}
+              </div>
             
+            {/* Campos de cadastro */}
             {isSignUp && (
               <>
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome Completo</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder="Seu nome completo"
-                    value={name}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    onBlur={handleNameBlur}
-                    className={touched.name && errors.name ? 'border-red-500' : ''}
-                  />
-                  {touched.name && errors.name && (
-                    <p className="text-sm text-red-500 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      {errors.name}
-                    </p>
-                  )}
+                {/* Primeiro e Último Nome */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">Primeiro Nome *</Label>
+                    <Input
+                      id="firstName"
+                      type="text"
+                      placeholder="Primeiro nome"
+                      {...signupForm.register('firstName')}
+                      className={signupForm.formState.errors.firstName ? 'border-red-500' : ''}
+                    />
+                    {signupForm.formState.errors.firstName && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {signupForm.formState.errors.firstName.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Último Nome *</Label>
+                    <Input
+                      id="lastName"
+                      type="text"
+                      placeholder="Último nome"
+                      {...signupForm.register('lastName')}
+                      className={signupForm.formState.errors.lastName ? 'border-red-500' : ''}
+                    />
+                    {signupForm.formState.errors.lastName && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {signupForm.formState.errors.lastName.message}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 
+                {/* Tipo de Documento */}
                 <div className="space-y-2">
                   <Label>Tipo de Documento</Label>
                   <div className="flex gap-4">
@@ -367,9 +194,11 @@ export default function LoginPage() {
                         name="documentType"
                         value="cpf"
                         checked={documentType === 'cpf'}
-                        onChange={(e) => {
+                        onChange={() => {
                           setDocumentType('cpf');
-                          setDocument('');
+                          signupForm.setValue('documentType', 'cpf');
+                          signupForm.setValue('document', '');
+                          signupForm.clearErrors('document');
                         }}
                         className="cursor-pointer"
                       />
@@ -381,9 +210,11 @@ export default function LoginPage() {
                         name="documentType"
                         value="cnpj"
                         checked={documentType === 'cnpj'}
-                        onChange={(e) => {
+                        onChange={() => {
                           setDocumentType('cnpj');
-                          setDocument('');
+                          signupForm.setValue('documentType', 'cnpj');
+                          signupForm.setValue('document', '');
+                          signupForm.clearErrors('document');
                         }}
                         className="cursor-pointer"
                       />
@@ -392,57 +223,90 @@ export default function LoginPage() {
                   </div>
                 </div>
                 
+                {/* CPF/CNPJ */}
                 <div className="space-y-2">
                   <Label htmlFor="document">
-                    {documentType === 'cpf' ? 'CPF' : 'CNPJ'}
+                    {documentType === 'cpf' ? 'CPF' : 'CNPJ'} *
                   </Label>
-                  <Input
-                    id="document"
-                    type="text"
-                    placeholder={
-                      documentType === 'cpf' 
-                        ? '000.000.000-00' 
-                        : '00.000.000/0000-00'
-                    }
-                    value={document}
-                    onChange={(e) => handleDocumentChange(e.target.value)}
-                    onBlur={handleDocumentBlur}
-                    maxLength={documentType === 'cpf' ? 14 : 18}
-                    className={touched.document && errors.document ? 'border-red-500' : ''}
-                    required={isSignUp}
+                  <Controller
+                    name="document"
+                    control={signupForm.control}
+                    render={({ field }) => (
+                      <Input
+                        id="document"
+                        type="text"
+                        placeholder={
+                          documentType === 'cpf' 
+                            ? '000.000.000-00' 
+                            : '00.000.000/0000-00'
+                        }
+                        maxLength={documentType === 'cpf' ? 14 : 18}
+                        value={field.value}
+                        onChange={(e) => {
+                          const cleanValue = removeNonNumeric(e.target.value);
+                          field.onChange(cleanValue);
+                        }}
+                        onBlur={(e) => {
+                          const cleanDoc = removeNonNumeric(e.target.value);
+                          if (documentType === 'cpf' && cleanDoc.length === 11) {
+                            signupForm.setValue('document', formatCPF(cleanDoc), { shouldValidate: true });
+                          } else if (documentType === 'cnpj' && cleanDoc.length === 14) {
+                            signupForm.setValue('document', formatCNPJ(cleanDoc), { shouldValidate: true });
+                          }
+                          field.onBlur();
+                        }}
+                        className={signupForm.formState.errors.document ? 'border-red-500' : ''}
+                      />
+                    )}
                   />
-                  {touched.document && errors.document && (
+                  {signupForm.formState.errors.document && (
                     <p className="text-sm text-red-500 flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      {errors.document}
+                      {signupForm.formState.errors.document.message}
                     </p>
                   )}
-                  {!errors.document && document && removeNonNumeric(document).length === (documentType === 'cpf' ? 11 : 14) && (
+                  {!signupForm.formState.errors.document && signupForm.watch('document') && removeNonNumeric(signupForm.watch('document')).length === (documentType === 'cpf' ? 11 : 14) && (
                     <p className="text-xs text-green-600">
                       {documentType === 'cpf' ? 'CPF' : 'CNPJ'} válido
                     </p>
                   )}
                 </div>
                 
+                {/* Telefone */}
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Telefone</Label>
-                  <Input
-                    id="phone"
-                    type="text"
-                    placeholder="(00) 00000-0000"
-                    value={phone}
-                    onChange={(e) => handlePhoneChange(e.target.value)}
-                    onBlur={handlePhoneBlur}
-                    maxLength={15}
-                    className={touched.phone && errors.phone ? 'border-red-500' : ''}
+                  <Label htmlFor="phone">Telefone *</Label>
+                  <Controller
+                    name="phone"
+                    control={signupForm.control}
+                    render={({ field }) => (
+                      <Input
+                        id="phone"
+                        type="text"
+                        placeholder="(00) 00000-0000"
+                        maxLength={15}
+                        value={field.value}
+                        onChange={(e) => {
+                          const maskedValue = applyPhoneMask(e.target.value);
+                          field.onChange(maskedValue);
+                        }}
+                        onBlur={(e) => {
+                          const cleanPhone = removeNonNumeric(e.target.value);
+                          if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+                            signupForm.setValue('phone', formatPhone(cleanPhone), { shouldValidate: true });
+                          }
+                          field.onBlur();
+                        }}
+                        className={signupForm.formState.errors.phone ? 'border-red-500' : ''}
+                      />
+                    )}
                   />
-                  {touched.phone && errors.phone && (
+                  {signupForm.formState.errors.phone && (
                     <p className="text-sm text-red-500 flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      {errors.phone}
+                      {signupForm.formState.errors.phone.message}
                     </p>
                   )}
-                  {!errors.phone && phone && (removeNonNumeric(phone).length === 10 || removeNonNumeric(phone).length === 11) && (
+                  {!signupForm.formState.errors.phone && signupForm.watch('phone') && (removeNonNumeric(signupForm.watch('phone')).length === 10 || removeNonNumeric(signupForm.watch('phone')).length === 11) && (
                     <p className="text-xs text-green-600">
                       Telefone válido
                     </p>
@@ -451,36 +315,115 @@ export default function LoginPage() {
               </>
             )}
             
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => handlePasswordChange(e.target.value)}
-                onBlur={handlePasswordBlur}
-                className={touched.password && errors.password ? 'border-red-500' : ''}
-                required
-              />
-              {touched.password && errors.password ? (
-                <p className="text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  {errors.password}
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Mínimo de 6 caracteres
-                </p>
+              {/* Senha */}
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha *</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    {...signupForm.register('password')}
+                    className={`${signupForm.formState.errors.password ? 'border-red-500' : ''} pr-10`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                {signupForm.formState.errors.password ? (
+                  <p className="text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {signupForm.formState.errors.password.message}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Mínimo de 6 caracteres
+                  </p>
+                )}
+              </div>
+              
+              {error && (
+                <div className="text-sm text-red-500">{error}</div>
               )}
-            </div>
-            {error && (
-              <div className="text-sm text-red-500">{error}</div>
-            )}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Carregando...' : isSignUp ? 'Criar conta' : 'Entrar'}
-            </Button>
-          </form>
+              
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Carregando...' : 'Criar conta'}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={loginForm.handleSubmit(onSubmitLogin)} className="space-y-4">
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  {...loginForm.register('email')}
+                  className={loginForm.formState.errors.email ? 'border-red-500' : ''}
+                />
+                {loginForm.formState.errors.email && (
+                  <p className="text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {loginForm.formState.errors.email.message}
+                  </p>
+                )}
+              </div>
+              
+              {/* Senha */}
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha *</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    {...loginForm.register('password')}
+                    className={`${loginForm.formState.errors.password ? 'border-red-500' : ''} pr-10`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                {loginForm.formState.errors.password ? (
+                  <p className="text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {loginForm.formState.errors.password.message}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Mínimo de 6 caracteres
+                  </p>
+                )}
+              </div>
+              
+              {error && (
+                <div className="text-sm text-red-500">{error}</div>
+              )}
+              
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Carregando...' : 'Entrar'}
+              </Button>
+            </form>
+          )}
 
           <div className="mt-4">
             <div className="relative">
@@ -524,16 +467,7 @@ export default function LoginPage() {
           <div className="mt-4 text-center text-sm">
             <button
               type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                // Limpa campos ao alternar entre login e cadastro
-                if (!isSignUp) {
-                  setDocument('');
-                  setName('');
-                  setPhone('');
-                  setDocumentType('cpf');
-                }
-              }}
+              onClick={handleToggleSignUp}
               className="text-primary hover:underline"
             >
               {isSignUp
@@ -552,4 +486,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
