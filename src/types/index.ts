@@ -55,6 +55,9 @@ export interface Reservation {
   platformFee?: number; // Taxa da plataforma
   ownerAmount?: number; // Valor que será pago ao owner
   paymentReleasedAt?: Timestamp; // Data em que o pagamento foi liberado
+  // Informações de campanha
+  campaignId?: string; // ID da campanha (se a reserva foi feita através de uma campanha)
+  campaignMediaId?: string; // ID do campaignMedia relacionado
 }
 
 export interface Favorite {
@@ -84,6 +87,31 @@ export interface User {
   cnpj?: string; // CNPJ do cliente (apenas números)
   documentType?: 'cpf' | 'cnpj'; // Tipo de documento (CPF ou CNPJ)
   phone?: string; // Telefone do cliente (apenas números, formato: (00) 00000-0000)
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface Campaign {
+  id: string;
+  userId: string;
+  name: string;
+  status: 'draft' | 'pending_payment' | 'paid' | 'completed' | 'cancelled';
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface CampaignMedia {
+  id: string;
+  campaignId: string;
+  mediaId: string;
+  userId: string;
+  startDate?: Timestamp;
+  endDate?: Timestamp;
+  quantity?: number;
+  priceType?: 'biweek' | 'month';
+  totalPrice?: number;
+  reservationId?: string; // ID da reserva após pagamento
+  status: 'pending' | 'reserved' | 'paid' | 'cancelled';
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
