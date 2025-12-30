@@ -61,8 +61,8 @@ export async function POST(request: NextRequest) {
     // Cria o link de onboarding
     const accountLink = await stripe.accountLinks.create({
       account: company.stripeAccountId,
-      refresh_url: `${request.headers.get('origin')}/owner/dashboard?stripe_refresh=true`,
-      return_url: `${request.headers.get('origin')}/owner/dashboard?stripe_success=true`,
+      refresh_url: `${request.headers.get('origin')}/owner/onboarding?stripe_refresh=true`,
+      return_url: `${request.headers.get('origin')}/owner/onboarding?stripe_success=true`,
       type: 'account_onboarding',
     });
 

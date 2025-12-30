@@ -77,7 +77,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Só cria se não existir (evita sobrescrever se já existir)
     if (!userSnap.exists()) {
-      const userData: any = {
+      const userData: {
+        email: string;
+        role: 'client' | 'owner';
+        createdAt: Timestamp;
+        name?: string;
+        documentType?: 'cpf' | 'cnpj';
+        cpf?: string;
+        cnpj?: string;
+        phone?: string;
+      } = {
         email: user.email || email,
         role: 'client', // Por padrão, novo usuário é client
         createdAt: Timestamp.now(),
@@ -168,7 +177,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const userRef = doc(db, 'users', user.uid);
-    const updateData: any = {
+    const updateData: {
+      updatedAt: Timestamp;
+      name?: string | null;
+      phone?: string | null;
+      documentType?: 'cpf' | 'cnpj';
+      cpf?: string | null;
+      cnpj?: string | null;
+    } = {
       updatedAt: Timestamp.now(),
     };
 

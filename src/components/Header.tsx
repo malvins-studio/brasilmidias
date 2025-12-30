@@ -9,10 +9,12 @@
  */
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Building2, Menu } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +27,7 @@ import {
 export function Header() {
   const { user, logout } = useAuth();
   const { userRole, company, isOwner, isSuperAdmin, loading: roleLoading } = useUserRole();
+  const router = useRouter();
 
   // Obtém o nome do usuário (name do Firestore ou email)
   const userName = userRole?.name || user?.displayName || user?.email?.split('@')[0] || 'Usuário';
@@ -44,6 +47,20 @@ export function Header() {
         </Link>
 
         <div className="flex items-center gap-4">
+          {/* Botão Proprietário - aparece para todos */}
+          <Button
+            onClick={() => router.push('/owner/onboarding')}
+            variant="outline"
+            size="sm"
+            className="flex flex-col items-center gap-0 h-auto py-2 px-4"
+          >
+            <div className="flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5" />
+              <span className="text-sm font-semibold leading-tight">Proprietário?</span>
+            </div>
+            <span className="text-xs text-muted-foreground font-normal leading-tight">Crie suas mídias</span>
+          </Button>
+          
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -125,9 +142,20 @@ export function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Link href="/login">
-              <Button variant="ghost">Entrar</Button>
-            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link href="/login" className="w-full">
+                    Entrar ou Se cadastrar
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>

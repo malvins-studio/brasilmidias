@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { validateCPF, validateCNPJ, validatePhone, removeNonNumeric } from './utils';
 
-// Schema para login
+// Schema para verificação de email (step 1)
+export const emailSchema = z.object({
+  email: z.string().min(1, 'Email é obrigatório').email('Email inválido'),
+});
+
+// Schema para login (step 2)
 export const loginSchema = z.object({
   email: z.string().min(1, 'Email é obrigatório').email('Email inválido'),
   password: z.string().min(1, 'Senha é obrigatória').min(6, 'A senha deve ter pelo menos 6 caracteres'),
@@ -110,6 +115,7 @@ export const changePasswordSchema = z.object({
   path: ['newPassword'],
 });
 
+export type EmailFormData = z.infer<typeof emailSchema>;
 export type LoginFormData = z.infer<typeof loginSchema>;
 export type SignupFormData = z.infer<typeof signupSchema>;
 export type ProfileFormData = z.infer<typeof profileSchema>;
