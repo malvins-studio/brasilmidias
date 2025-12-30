@@ -8,6 +8,7 @@ import { Header } from '@/components/Header';
 import { MediaFilters } from '@/components/MediaFilters';
 import { MediaCard } from '@/components/MediaCard';
 import { MediaMap } from '@/components/MediaMap';
+import { CampaignCard } from '@/components/CampaignCard';
 import { useMidias } from '@/hooks/useMidias';
 import { useReservas } from '@/hooks/useReservas';
 import type { Media } from '@/types';
@@ -208,53 +209,59 @@ export default function HomeContent() {
         loading={loading}
         availableCities={availableCities}
       />
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex gap-6">
-        {/* Lista de mídias */}
-        <div className="flex-1">
-          {loading ? (
-            <div className="text-center py-12">Carregando...</div>
-          ) : midias.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">
-                Nenhuma mídia encontrada. Tente ajustar os filtros.
-              </p>
-            </div>
-          ) : (
-            <>
-              {mapBounds && visibleMidias.length < midias.length && visibleMidias.length > 0 && (
-                <div className="mb-4 text-sm text-muted-foreground">
-                  Mostrando {visibleMidias.length} de {midias.length} mídias na área visível
-                </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {displayMidias.map((media) => (
-                  <MediaCard
-                    key={media.id}
-                    media={media}
-                    isReserved={reservedMediaIds.has(media.id)}
-                    onMouseEnter={() => setHoveredMediaId(media.id)}
-                    onMouseLeave={() => setHoveredMediaId(undefined)}
-                    cardId={`media-${media.id}`}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+      
+      {/* Card de Campanha - logo abaixo dos filtros */}
+      <div className="container mx-auto px-4 py-3">
+        <CampaignCard />
+      </div>
 
-        {/* Mapa - sempre visível */}
-        <div className="hidden lg:block w-[500px] sticky top-8 h-[calc(100vh-120px)]">
-          <MediaMap
-            midias={midias}
-            selectedMediaId={selectedMediaId}
-            hoveredMediaId={hoveredMediaId}
-            onMarkerClick={handleMarkerClick}
-            onMarkerHover={handleMarkerHover}
-            onBoundsChange={handleBoundsChange}
-            onMapClick={handleMapClick}
-          />
-        </div>
+      <main className="container mx-auto px-4 py-8">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Lista de mídias */}
+          <div className="flex-1 min-w-0">
+            {loading ? (
+              <div className="text-center py-12">Carregando...</div>
+            ) : midias.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">
+                  Nenhuma mídia encontrada. Tente ajustar os filtros.
+                </p>
+              </div>
+            ) : (
+              <>
+                {mapBounds && visibleMidias.length < midias.length && visibleMidias.length > 0 && (
+                  <div className="mb-4 text-sm text-muted-foreground">
+                    Mostrando {visibleMidias.length} de {midias.length} mídias na área visível
+                  </div>
+                )}
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {displayMidias.map((media) => (
+                    <MediaCard
+                      key={media.id}
+                      media={media}
+                      isReserved={reservedMediaIds.has(media.id)}
+                      onMouseEnter={() => setHoveredMediaId(media.id)}
+                      onMouseLeave={() => setHoveredMediaId(undefined)}
+                      cardId={`media-${media.id}`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Mapa - sempre visível */}
+          <div className="hidden lg:block w-full lg:w-[400px] xl:w-[450px] flex-shrink-0 sticky top-8 h-[calc(100vh-120px)]">
+            <MediaMap
+              midias={midias}
+              selectedMediaId={selectedMediaId}
+              hoveredMediaId={hoveredMediaId}
+              onMarkerClick={handleMarkerClick}
+              onMarkerHover={handleMarkerHover}
+              onBoundsChange={handleBoundsChange}
+              onMapClick={handleMapClick}
+            />
+          </div>
         </div>
       </main>
     </div>

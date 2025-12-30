@@ -33,7 +33,31 @@ export async function GET(request: NextRequest) {
 
     const user = userDoc.data();
 
-    if (!user.stripeAccountId) {
+    if (!user.companyId) {
+      return NextResponse.json({
+        hasAccount: false,
+        accountId: null,
+        detailsSubmitted: false,
+        chargesEnabled: false,
+        payoutsEnabled: false,
+      });
+    }
+
+    // Busca a company
+    const companyDoc = await getDoc(doc(db, 'companies', user.companyId));
+    if (!companyDoc.exists()) {
+      return NextResponse.json({
+        hasAccount: false,
+        accountId: null,
+        detailsSubmitted: false,
+        chargesEnabled: false,
+        payoutsEnabled: false,
+      });
+    }
+
+    const company = companyDoc.data();
+
+    if (!company.stripeAccountId) {
       return NextResponse.json({
         hasAccount: false,
         accountId: null,
@@ -44,7 +68,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Busca informações da conta no Stripe
-    const account = await stripe.accounts.retrieve(user.stripeAccountId);
+    const account = await stripe.accounts.retrieve(company.stripeAccountId);
 
     return NextResponse.json({
       hasAccount: true,

@@ -46,6 +46,18 @@ export function StripeConnectCard() {
     }
   }, [user, fetchAccountStatus]);
 
+  // Atualiza o status quando a janela recebe foco (útil após retornar do Stripe)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user) {
+        fetchAccountStatus();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user, fetchAccountStatus]);
+
   const handleCreateAccount = async () => {
     if (!user?.uid) return;
 

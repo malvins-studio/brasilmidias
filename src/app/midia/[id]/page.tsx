@@ -9,6 +9,7 @@ import { Header } from '@/components/Header';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { ImageGallery } from '@/components/ImageGallery';
 import { MediaMap } from '@/components/MediaMap';
+import { CampaignCard } from '@/components/CampaignCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +19,7 @@ import { Minus, Plus } from 'lucide-react';
 import { useReservas } from '@/hooks/useReservas';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useAuth } from '@/hooks/useAuth';
+import { useCampaign } from '@/contexts/CampaignContext';
 import { Media } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -26,6 +28,7 @@ export default function MediaDetailPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { checkAvailability } = useReservas();
+  const { activeCampaign, addMediaToCampaign } = useCampaign();
   
   const [media, setMedia] = useState<Media | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +38,7 @@ export default function MediaDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [addingToCampaign, setAddingToCampaign] = useState(false);
   // O usuário pode escolher entre bi-semanal ou mensal (sempre começa com bi-semanal)
   const [selectedPriceType, setSelectedPriceType] = useState<'biweek' | 'month'>('biweek');
   // Quantidade de períodos (bi-semanas ou meses)
@@ -159,7 +163,7 @@ export default function MediaDetailPage() {
       setDateRange(undefined);
       setQuantity(1);
     }
-  }, [media?.id]);
+  }, [media]);
 
   // Flag para evitar loops infinitos entre quantidade e dateRange
   const [isUpdatingFromQuantity, setIsUpdatingFromQuantity] = useState(false);
@@ -237,6 +241,57 @@ export default function MediaDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange?.from?.getTime(), dateRange?.to?.getTime(), selectedPriceType]);
 
+  const handleAddToCampaign = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    if (!activeCampaign) {
+      setError('Nenhuma campanha ativa. Crie uma campanha primeiro.');
+      return;
+    }
+
+    if (!dateRange?.from || !dateRange?.to || !media) {
+      setError('Por favor, selecione as datas');
+      return;
+    }
+
+    try {
+      setError(null);
+      setSuccess(false);
+      setAddingToCampaign(true);
+      
+      // Calcula o preço baseado no tipo e multiplica pela quantidade
+      const basePrice = selectedPriceType === 'biweek' 
+        ? media.price 
+        : media.price * 2; // Mensal = 2x bi-semanal
+      const totalPrice = quantity * basePrice;
+
+      await addMediaToCampaign(
+        activeCampaign.id,
+        media.id,
+        dateRange.from,
+        dateRange.to,
+        quantity,
+        selectedPriceType,
+        totalPrice
+      );
+
+      setSuccess(true);
+      setError(null);
+      
+      // Limpa a seleção
+      setDateRange(undefined);
+      setQuantity(1);
+    } catch (err) {
+      const error = err as { message?: string };
+      setError(error.message || 'Erro ao adicionar mídia à campanha');
+    } finally {
+      setAddingToCampaign(false);
+    }
+  };
+
   const handleReserve = async () => {
     if (!user) {
       router.push('/login');
@@ -270,6 +325,7 @@ export default function MediaDetailPage() {
           endDate: dateRange.to.toISOString(),
           totalPrice,
           userId: user.uid,
+          customerEmail: user.email || undefined,
         }),
       });
 
@@ -333,6 +389,12 @@ export default function MediaDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
+      
+      {/* Card de Campanha - logo abaixo do header */}
+      <div className="container mx-auto px-4 py-3">
+        <CampaignCard />
+      </div>
+
       <main className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
@@ -390,8 +452,8 @@ export default function MediaDetailPage() {
             </Card>
           </div>
 
-          <div className="lg:col-span-1">
-            <Card className="sticky top-8">
+          <div className="sticky lg:col-span-1">
+            <Card className="top-8">
               <CardContent className="p-6 space-y-6">
                 <div>
                   {/* Seleção do tipo de preço */}
@@ -530,20 +592,44 @@ export default function MediaDetailPage() {
                     </p>
                   )}
 
-                  <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={handleReserve}
-                    disabled={
-                      !dateRange?.from ||
-                      !dateRange?.to ||
-                      !isAvailable ||
-                      processingPayment ||
-                      checkingAvailability
-                    }
-                  >
-                    {processingPayment ? 'Processando...' : 'Ir para Pagamento'}
-                  </Button>
+                  {activeCampaign ? (
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={handleAddToCampaign}
+                      disabled={
+                        !dateRange?.from ||
+                        !dateRange?.to ||
+                        !isAvailable ||
+                        addingToCampaign ||
+                        checkingAvailability
+                      }
+                    >
+                      {addingToCampaign ? (
+                        'Adicionando...'
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Adicionar à Campanha
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={handleReserve}
+                      disabled={
+                        !dateRange?.from ||
+                        !dateRange?.to ||
+                        !isAvailable ||
+                        processingPayment ||
+                        checkingAvailability
+                      }
+                    >
+                      {processingPayment ? 'Processando...' : 'Ir para Pagamento'}
+                    </Button>
+                  )}
 
                   {!user && (
                     <p className="text-xs text-center text-muted-foreground">

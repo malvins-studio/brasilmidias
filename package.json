@@ -4,14 +4,18 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:debug": "NODE_OPTIONS='--inspect' next dev",
     "build": "next build",
     "start": "next start",
+    "start:debug": "NODE_OPTIONS='--inspect' next start",
     "lint": "eslint",
     "firebase:seed": "tsx scripts/firebase-seed.ts",
     "firebase:clear": "tsx scripts/firebase-clear.ts",
     "firebase:clear:all": "tsx scripts/firebase-clear.ts --all"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
@@ -35,9 +39,11 @@
     "react-day-picker": "^9.11.2",
     "react-dom": "19.2.0",
     "react-firebase-hooks": "^5.1.1",
+    "react-hook-form": "^7.69.0",
     "react-leaflet": "^5.0.0",
     "stripe": "^20.1.0",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "zod": "^4.2.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

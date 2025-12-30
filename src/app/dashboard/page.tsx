@@ -41,11 +41,17 @@ function DashboardContent() {
     }
   }, [user, authLoading, router]);
 
+  /**
+   * Busca as reservas que o usuário FEZ (comprou)
+   * IMPORTANTE: Este dashboard mostra apenas as reservas onde o usuário é o CLIENTE (userId),
+   * não as reservas das mídias que ele possui (isso é mostrado no /owner/dashboard)
+   */
   const fetchReservations = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
+      // Busca reservas onde o userId é o usuário logado (reservas que ELE fez)
       const q = query(
         collection(db, 'reservations'),
         where('userId', '==', user.uid)
@@ -54,11 +60,20 @@ function DashboardContent() {
       const querySnapshot = await getDocs(q);
       const reservationsData: (Reservation & { media?: Media })[] = [];
 
+      console.log(`[Dashboard] Buscando reservas para userId: ${user.uid}`);
+      console.log(`[Dashboard] Encontradas ${querySnapshot.docs.length} reservas`);
+
       for (const docSnap of querySnapshot.docs) {
+        const reservationData = docSnap.data();
         const reservation: Reservation & { media?: Media } = {
           id: docSnap.id,
-          ...docSnap.data(),
+          ...reservationData,
         } as Reservation;
+
+        // Debug: verifica se o userId da reserva corresponde ao usuário logado
+        if (reservation.userId !== user.uid) {
+          console.warn(`[Dashboard] ATENÇÃO: Reserva ${docSnap.id} tem userId ${reservation.userId}, mas o usuário logado é ${user.uid}`);
+        }
 
         // Busca informações da mídia
         try {

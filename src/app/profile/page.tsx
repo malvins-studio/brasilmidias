@@ -39,7 +39,8 @@ export default function ProfilePage() {
   const router = useRouter();
 
   // Estados do formulário
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [documentType, setDocumentType] = useState<'cpf' | 'cnpj'>('cpf');
   const [document, setDocument] = useState('');
   const [phone, setPhone] = useState('');
@@ -51,7 +52,8 @@ export default function ProfilePage() {
 
   // Estados de validação (mensagens de erro por campo)
   const [errors, setErrors] = useState<{
-    name?: string;
+    firstName?: string;
+    lastName?: string;
     document?: string;
     phone?: string;
   }>({});
@@ -71,7 +73,8 @@ export default function ProfilePage() {
   
   // Estados para controlar quando validar (após o usuário interagir)
   const [touched, setTouched] = useState<{
-    name?: boolean;
+    firstName?: boolean;
+    lastName?: boolean;
     document?: boolean;
     phone?: boolean;
     currentPassword?: boolean;
@@ -87,7 +90,13 @@ export default function ProfilePage() {
     }
 
     if (userRole) {
-      setName(userRole.name || '');
+      // Divide o nome em primeiro e último nome
+      const fullName = userRole.name || '';
+      const nameParts = fullName.trim().split(' ');
+      if (nameParts.length > 0) {
+        setFirstName(nameParts[0] || '');
+        setLastName(nameParts.slice(1).join(' ') || '');
+      }
       
       if (userRole.documentType) {
         setDocumentType(userRole.documentType);
@@ -112,7 +121,7 @@ export default function ProfilePage() {
     const cleanDoc = removeNonNumeric(doc);
     
     if (!cleanDoc) {
-      return undefined; // Documento é opcional
+      return 'CPF ou CNPJ é obrigatório';
     }
     
     if (type === 'cpf') {
@@ -160,33 +169,58 @@ export default function ProfilePage() {
     setErrors(prev => ({ ...prev, document: error }));
   };
 
-  const handleNameChange = (value: string) => {
-    setName(value);
-    
-    // Valida em tempo real se o campo foi tocado
-    if (touched.name) {
-      if (value.trim().length > 0 && value.trim().length < 3) {
-        setErrors(prev => ({ ...prev, name: 'Nome deve ter pelo menos 3 caracteres' }));
-      } else {
-        setErrors(prev => ({ ...prev, name: undefined }));
-      }
+  const validateFirstName = (value: string): string | undefined => {
+    if (!value || !value.trim()) {
+      return 'Primeiro nome é obrigatório';
+    }
+    if (value.trim().length < 2) {
+      return 'Primeiro nome deve ter pelo menos 2 caracteres';
+    }
+    return undefined;
+  };
+
+  const validateLastName = (value: string): string | undefined => {
+    if (!value || !value.trim()) {
+      return 'Último nome é obrigatório';
+    }
+    if (value.trim().length < 2) {
+      return 'Último nome deve ter pelo menos 2 caracteres';
+    }
+    return undefined;
+  };
+
+  const handleFirstNameChange = (value: string) => {
+    setFirstName(value);
+    if (touched.firstName) {
+      const error = validateFirstName(value);
+      setErrors(prev => ({ ...prev, firstName: error }));
     }
   };
 
-  const handleNameBlur = () => {
-    setTouched(prev => ({ ...prev, name: true }));
-    
-    if (name.trim().length > 0 && name.trim().length < 3) {
-      setErrors(prev => ({ ...prev, name: 'Nome deve ter pelo menos 3 caracteres' }));
-    } else {
-      setErrors(prev => ({ ...prev, name: undefined }));
+  const handleFirstNameBlur = () => {
+    setTouched(prev => ({ ...prev, firstName: true }));
+    const error = validateFirstName(firstName);
+    setErrors(prev => ({ ...prev, firstName: error }));
+  };
+
+  const handleLastNameChange = (value: string) => {
+    setLastName(value);
+    if (touched.lastName) {
+      const error = validateLastName(value);
+      setErrors(prev => ({ ...prev, lastName: error }));
     }
+  };
+
+  const handleLastNameBlur = () => {
+    setTouched(prev => ({ ...prev, lastName: true }));
+    const error = validateLastName(lastName);
+    setErrors(prev => ({ ...prev, lastName: error }));
   };
 
   // Validação de telefone
   const validatePhoneField = (phoneValue: string): string | undefined => {
-    if (!phoneValue) {
-      return undefined; // Telefone é opcional
+    if (!phoneValue || !phoneValue.trim()) {
+      return 'Telefone é obrigatório';
     }
     const cleanPhone = removeNonNumeric(phoneValue);
     if (cleanPhone.length !== 10 && cleanPhone.length !== 11) {
@@ -255,21 +289,21 @@ export default function ProfilePage() {
     setSuccess('');
     
     // Marca todos os campos como tocados para mostrar erros
-    setTouched({ name: true, document: true, phone: true });
+    setTouched({ firstName: true, lastName: true, document: true, phone: true });
     
     // Valida todos os campos
     const newErrors: typeof errors = {};
     
-    if (name.trim().length > 0 && name.trim().length < 3) {
-      newErrors.name = 'Nome deve ter pelo menos 3 caracteres';
-    }
+    const firstNameError = validateFirstName(firstName);
+    if (firstNameError) newErrors.firstName = firstNameError;
+    
+    const lastNameError = validateLastName(lastName);
+    if (lastNameError) newErrors.lastName = lastNameError;
     
     const cleanDocument = removeNonNumeric(document);
-    if (cleanDocument) {
-      const docError = validateDocument(document, documentType);
-      if (docError) {
-        newErrors.document = docError;
-      }
+    const docError = validateDocument(document, documentType);
+    if (docError) {
+      newErrors.document = docError;
     }
     
     const phoneError = validatePhoneField(phone);
@@ -287,15 +321,15 @@ export default function ProfilePage() {
     setLoading(true);
 
     try {
-
       // Atualiza dados do usuário
       const cleanPhone = removeNonNumeric(phone);
+      const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
       await updateUserData({
-        name: name || undefined,
-        documentType: cleanDocument ? documentType : undefined,
+        name: fullName,
+        documentType: documentType,
         cpf: documentType === 'cpf' && cleanDocument ? cleanDocument : undefined,
         cnpj: documentType === 'cnpj' && cleanDocument ? cleanDocument : undefined,
-        phone: cleanPhone || undefined,
+        phone: cleanPhone,
       });
 
       // Atualiza dados locais
@@ -417,23 +451,45 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Nome */}
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome Completo</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder="Seu nome completo"
-                    value={name}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    onBlur={handleNameBlur}
-                    className={touched.name && errors.name ? 'border-red-500' : ''}
-                  />
-                  {touched.name && errors.name && (
-                    <p className="text-sm text-red-500 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      {errors.name}
-                    </p>
-                  )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">Primeiro Nome *</Label>
+                    <Input
+                      id="firstName"
+                      type="text"
+                      placeholder="Primeiro nome"
+                      value={firstName}
+                      onChange={(e) => handleFirstNameChange(e.target.value)}
+                      onBlur={handleFirstNameBlur}
+                      className={touched.firstName && errors.firstName ? 'border-red-500' : ''}
+                      required
+                    />
+                    {touched.firstName && errors.firstName && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.firstName}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Último Nome *</Label>
+                    <Input
+                      id="lastName"
+                      type="text"
+                      placeholder="Último nome"
+                      value={lastName}
+                      onChange={(e) => handleLastNameChange(e.target.value)}
+                      onBlur={handleLastNameBlur}
+                      className={touched.lastName && errors.lastName ? 'border-red-500' : ''}
+                      required
+                    />
+                    {touched.lastName && errors.lastName && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.lastName}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Tipo de Documento */}
@@ -474,7 +530,7 @@ export default function ProfilePage() {
                 {/* CPF/CNPJ */}
                 <div className="space-y-2">
                   <Label htmlFor="document">
-                    {documentType === 'cpf' ? 'CPF' : 'CNPJ'}
+                    {documentType === 'cpf' ? 'CPF' : 'CNPJ'} *
                   </Label>
                   <Input
                     id="document"
@@ -489,6 +545,7 @@ export default function ProfilePage() {
                     onBlur={handleDocumentBlur}
                     maxLength={documentType === 'cpf' ? 14 : 18}
                     className={touched.document && errors.document ? 'border-red-500' : ''}
+                    required
                   />
                   {touched.document && errors.document && (
                     <p className="text-sm text-red-500 flex items-center gap-1">
@@ -505,7 +562,7 @@ export default function ProfilePage() {
 
                 {/* Telefone */}
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Telefone</Label>
+                  <Label htmlFor="phone">Telefone *</Label>
                   <Input
                     id="phone"
                     type="text"
@@ -515,6 +572,7 @@ export default function ProfilePage() {
                     onBlur={handlePhoneBlur}
                     maxLength={15}
                     className={touched.phone && errors.phone ? 'border-red-500' : ''}
+                    required
                   />
                   {touched.phone && errors.phone && (
                     <p className="text-sm text-red-500 flex items-center gap-1">

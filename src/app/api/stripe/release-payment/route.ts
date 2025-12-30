@@ -66,22 +66,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Busca o stripeAccountId do owner através da mídia
+    // Busca o stripeAccountId da company através da mídia
     let ownerStripeAccountId: string | null = null;
     try {
       const mediaDoc = await getDoc(doc(db, 'media', reservation.mediaId));
       if (mediaDoc.exists()) {
         const media = mediaDoc.data();
-        if (media.ownerId) {
-          const ownerDoc = await getDoc(doc(db, 'users', media.ownerId));
-          if (ownerDoc.exists()) {
-            const ownerData = ownerDoc.data();
-            ownerStripeAccountId = ownerData.stripeAccountId || null;
+        if (media.companyId) {
+          const companyDoc = await getDoc(doc(db, 'companies', media.companyId));
+          if (companyDoc.exists()) {
+            const companyData = companyDoc.data();
+            ownerStripeAccountId = companyData.stripeAccountId || null;
           }
         }
       }
     } catch (error) {
-      console.error('Error fetching owner stripe account:', error);
+      console.error('Error fetching company stripe account:', error);
     }
 
     // Se não há ownerStripeAccountId, apenas marca como liberado
