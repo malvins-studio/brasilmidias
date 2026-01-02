@@ -177,6 +177,11 @@ export function Header() {
                 <DropdownMenuItem asChild>
                   <Link href="/campaigns">Minhas Campanhas</Link>
                 </DropdownMenuItem>
+
+                {/* Meus Favoritos - disponível para todos os usuários */}
+                <DropdownMenuItem asChild>
+                  <Link href="/favorites">Meus Favoritos</Link>
+                </DropdownMenuItem>
                 {/* Dashboard do owner - apenas para owners */}
                 {!roleLoading && isOwner && (
                   <DropdownMenuItem asChild>

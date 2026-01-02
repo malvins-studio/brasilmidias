@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,16 +8,22 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useCampaign } from '@/contexts/CampaignContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { Media } from '@/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
-import { Calendar, ShoppingCart, Loader2 } from 'lucide-react';
+import { Calendar, ShoppingCart, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 function CampaignsContent() {
   const { user, loading: authLoading } = useAuth();
-  const { campaigns, campaignMedias, getCampaignTotalPrice, loading, setActiveCampaign, refetch } = useCampaign();
+  const { campaigns, campaignMedias, getCampaignTotalPrice, loading, refetch } = useCampaign();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
+  const [mediasData, setMediasData] = useState<Record<string, Record<string, Media>>>({});
+  const [loadingMedias, setLoadingMedias] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -33,6 +39,60 @@ function CampaignsContent() {
       router.replace('/campaigns');
     }
   }, [searchParams, router, refetch]);
+
+  // Busca dados das mídias quando uma campanha é expandida
+  useEffect(() => {
+    if (!expandedCampaignId) return;
+
+    // Verifica se já carregou antes de buscar
+    if (mediasData[expandedCampaignId]) return;
+
+    const fetchMedias = async () => {
+      const mediasInCampaign = campaignMedias.filter(cm => cm.campaignId === expandedCampaignId);
+      
+      if (mediasInCampaign.length === 0) return;
+
+      setLoadingMedias(prev => ({ ...prev, [expandedCampaignId]: true }));
+
+      try {
+        const medias: Record<string, Media> = {};
+        
+        for (const campaignMedia of mediasInCampaign) {
+          try {
+            const mediaDoc = await getDoc(doc(db, 'media', campaignMedia.mediaId));
+            if (mediaDoc.exists()) {
+              medias[campaignMedia.mediaId] = {
+                id: mediaDoc.id,
+                ...mediaDoc.data(),
+              } as Media;
+            }
+          } catch (error) {
+            console.error(`Error fetching media ${campaignMedia.mediaId}:`, error);
+          }
+        }
+        
+        setMediasData(prev => ({
+          ...prev,
+          [expandedCampaignId]: medias,
+        }));
+      } catch (error) {
+        console.error('Error fetching medias:', error);
+      } finally {
+        setLoadingMedias(prev => ({ ...prev, [expandedCampaignId]: false }));
+      }
+    };
+
+    fetchMedias();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedCampaignId]);
+
+  const toggleCampaignDetails = (campaignId: string) => {
+    if (expandedCampaignId === campaignId) {
+      setExpandedCampaignId(null);
+    } else {
+      setExpandedCampaignId(campaignId);
+    }
+  };
 
   if (authLoading || loading) {
     return (
@@ -122,15 +182,77 @@ function CampaignsContent() {
                       )}
                       <Button
                         variant="outline"
-                        onClick={() => {
-                          setActiveCampaign(campaign);
-                          router.push('/');
-                        }}
+                        onClick={() => toggleCampaignDetails(campaign.id)}
                         className="flex-1"
                       >
-                        Ver Detalhes
+                        {expandedCampaignId === campaign.id ? (
+                          <>
+                            <ChevronUp className="h-4 w-4 mr-2" />
+                            Ocultar Detalhes
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-4 w-4 mr-2" />
+                            Ver Detalhes
+                          </>
+                        )}
                       </Button>
                     </div>
+
+                    {/* Detalhes expandidos */}
+                    {expandedCampaignId === campaign.id && (
+                      <div className="mt-4 pt-4 border-t">
+                        {loadingMedias[campaign.id] ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <h3 className="font-semibold text-sm mb-3">Resumo da Campanha</h3>
+                            {campaignMedias
+                              .filter(cm => cm.campaignId === campaign.id)
+                              .map((campaignMedia) => {
+                                const media = mediasData[campaign.id]?.[campaignMedia.mediaId];
+                                if (!media) return null;
+
+                                return (
+                                  <div key={campaignMedia.id} className="border-b pb-4 last:border-0">
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1">
+                                        <h4 className="font-semibold text-sm">{media.name}</h4>
+                                        <p className="text-xs text-muted-foreground">
+                                          {media.city}, {media.state}
+                                        </p>
+                                        {campaignMedia.startDate && campaignMedia.endDate && (
+                                          <p className="text-xs text-muted-foreground mt-1">
+                                            {format(campaignMedia.startDate.toDate(), 'dd/MM/yyyy', { locale: ptBR })} -{' '}
+                                            {format(campaignMedia.endDate.toDate(), 'dd/MM/yyyy', { locale: ptBR })}
+                                          </p>
+                                        )}
+                                        <div className="flex items-center gap-2 mt-2">
+                                          <Badge variant="outline" className="text-xs">
+                                            {campaignMedia.quantity}x {campaignMedia.priceType === 'biweek' ? 'Bi-semanal' : 'Mensal'}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="font-semibold text-sm">
+                                          {formatCurrency(campaignMedia.totalPrice || 0)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                            <div className="border-t pt-4 flex items-center justify-between">
+                              <span className="text-sm font-semibold">Total:</span>
+                              <span className="text-lg font-bold">{formatCurrency(totalPrice)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );

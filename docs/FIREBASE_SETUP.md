@@ -120,9 +120,77 @@ Você pode adicionar dados de exemplo diretamente no Firestore Console ou usar e
    ```
 3. Acesse `http://localhost:3000`
 
+### 8. Configurar Firebase Admin SDK (Service Account)
+
+Para usar o Firebase Admin SDK (necessário para algumas operações no servidor), você precisa de uma Service Account:
+
+#### Desenvolvimento Local
+
+1. No Firebase Console, vá em **Project Settings** > **Service accounts**
+2. Clique em **"Generate new private key"**
+3. Salve o arquivo JSON como `serviceAccountKey.json` na raiz do projeto
+4. **IMPORTANTE:** Este arquivo já está no `.gitignore` e NÃO deve ser commitado
+
+#### Produção (Vercel)
+
+No Vercel, você tem **duas opções** para configurar as credenciais. O código tenta primeiro o arquivo (que não existe no Vercel), depois as variáveis de ambiente:
+
+##### Opção 1: Variáveis de Ambiente Individuais (Recomendado)
+
+Esta é a forma mais simples e organizada:
+
+1. Acesse seu projeto no [Vercel Dashboard](https://vercel.com/dashboard)
+2. Vá em **Settings** > **Environment Variables**
+3. Adicione as seguintes variáveis (uma por vez):
+
+   - **Name:** `FIREBASE_PROJECT_ID`  
+     **Value:** O ID do seu projeto (ex: `brasilmidias-com-br`)
+
+   - **Name:** `FIREBASE_CLIENT_EMAIL`  
+     **Value:** O email da service account (ex: `firebase-adminsdk-xxx@projeto.iam.gserviceaccount.com`)
+
+   - **Name:** `FIREBASE_PRIVATE_KEY`  
+     **Value:** A chave privada completa, incluindo `-----BEGIN PRIVATE KEY-----` e `-----END PRIVATE KEY-----`  
+     **Importante:** Cole a chave exatamente como está, com as quebras de linha `\n` ou deixe o Vercel processar automaticamente
+
+   - **Name:** `FIREBASE_PRIVATE_KEY_ID` (opcional)  
+     **Value:** O ID da chave privada
+
+   - **Name:** `FIREBASE_CLIENT_ID` (opcional)  
+     **Value:** O client ID
+
+4. Para cada variável, selecione **Production, Preview e Development**
+5. Clique em **Save** para cada uma
+
+**Como obter os valores:**
+Abra o arquivo `serviceAccountKey.json` localmente e copie os valores correspondentes de cada campo.
+
+##### Opção 2: Variável JSON Completa
+
+Alternativamente, você pode usar uma única variável com o JSON completo:
+
+1. Acesse seu projeto no [Vercel Dashboard](https://vercel.com/dashboard)
+2. Vá em **Settings** > **Environment Variables**
+3. Adicione uma nova variável:
+   - **Name:** `FIREBASE_SERVICE_ACCOUNT`
+   - **Value:** O conteúdo completo do arquivo `serviceAccountKey.json` (todo o JSON em uma linha)
+   - **Environments:** Selecione Production, Preview e Development
+4. Clique em **Save**
+
+**Como obter o valor:**
+```bash
+cat serviceAccountKey.json | jq -c
+```
+
+Ou copie manualmente o conteúdo do arquivo e remova todas as quebras de linha.
+
+**Recomendação:** Use a **Opção 1** (variáveis individuais) pois é mais fácil de gerenciar e visualizar no Vercel.
+
 ### Dicas de Segurança
 
+- **NUNCA** commite o arquivo `serviceAccountKey.json` no Git (ele já está no .gitignore)
 - **NUNCA** commite o arquivo `.env.local` no Git (ele já está no .gitignore)
 - As variáveis que começam com `NEXT_PUBLIC_` são expostas no cliente
 - Para produção, configure as variáveis de ambiente na plataforma de hospedagem (Vercel, Netlify, etc.)
+- A variável `FIREBASE_SERVICE_ACCOUNT` contém credenciais sensíveis - mantenha-a segura
 
